@@ -284,7 +284,7 @@ class ImageWindow(QtGui.QMainWindow):
         # without any associated button or menu item. We just need to add the
         # action to the widget that will handle these shortcuts (here, our
         # QMainWindow).
-        closeAction = QtGui.QAction(self.tr("Fermer"), self)
+        closeAction = QtGui.QAction(self.tr("Close"), self)
         closeAction.setShortcuts([QtCore.Qt.Key_Escape, QtCore.Qt.Key_Space,
                                   QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return])
         closeAction.triggered.connect(self.close)

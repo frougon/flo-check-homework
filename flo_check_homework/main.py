@@ -317,10 +317,10 @@ class MultipleInputQuestionLine(QtCore.QObject):
         else:
             # Set a minimum width in order to avoid seeing the label grow
             # when actual text is written to it.
-            w = self.assessmentWidget.fontMetrics().width(self.tr(" Aïe ! "))
+            w = self.assessmentWidget.fontMetrics().width(self.tr(" Ouch! "))
             self.assessmentWidget.setMinimumWidth(w)
 
-        self.validateButton = QtGui.QPushButton(self.tr("Valider"))
+        self.validateButton = QtGui.QPushButton(self.tr("Submit"))
         self.validateButton.clicked.connect(self.validate)
 
     @QtCore.pyqtSlot()
@@ -341,7 +341,7 @@ class MultipleInputQuestionLine(QtCore.QObject):
             #     u":/images/angry_dog.svg")
         else:
             self.assessmentWidget.setText(
-                self.tr("OK") if correct else self.tr("Aïe !"))
+                self.tr("OK") if correct else self.tr("Ouch!"))
 
         assert len(self.inputFields) == len(self.question.result_as_strings)
 
@@ -353,8 +353,8 @@ class MultipleInputQuestionLine(QtCore.QObject):
 
                 ans = self.inputFields[i].text().strip()
                 if not ans:
-                    ans = self.tr("<rien>")
-                correction = self.tr("{0} (pas {1})").format(result, ans)
+                    ans = self.tr("<nothing>")
+                correction = self.tr("{0} (not {1})").format(result, ans)
 
                 self.inputFields[i].setText(correction)
                 palette = self.inputFields[i].palette()
@@ -606,7 +606,7 @@ class Questionnaire(QtGui.QWidget):
         self.subQuestionnaires = []
         self.score = 0
         self.maxScore = 0
-        self.scorePrefix = self.tr("Score : ")
+        self.scorePrefix = self.tr("Score: ")
         self.allValidated = False     # avoid name conflict with the signal
 
         # QWidget containing the "concatenation" of all subQuestionnaires of
@@ -651,7 +651,7 @@ class Questionnaire(QtGui.QWidget):
 
         bottomLayout = QtGui.QHBoxLayout()
 
-        self.validateButton = QtGui.QPushButton(self.tr("&Tout valider"))
+        self.validateButton = QtGui.QPushButton(self.tr("&Submit all"))
         self.validateButton.clicked.connect(self.validateAll)
         bottomLayout.addWidget(self.validateButton)
 
@@ -804,7 +804,7 @@ class MainWindow(QtGui.QMainWindow):
         self.mainWidget.score_updated.connect(self.onScoreUpdate)
         self.mainWidget.setInitialFocus()
 
-        self.setWindowTitle(self.tr("Vérification du mot de passe"))
+        self.setWindowTitle(self.tr("Password check"))
 
         self.createActions()
         self.createMenus()
@@ -834,19 +834,19 @@ class MainWindow(QtGui.QMainWindow):
                                             {"hSizeHintFM": 16}),
                 EuclidianDivisionGenerator(register_cleanup_handler,
                                   seen=divisorsSeen),
-                instruction=self.tr("Mot de passe <i>divisions</i> :"),
+                instruction=self.tr("<i>Division</i> password:"),
                 maxNbQuestions=nbEuclidianDivisions),
                          SubQuestionnaire(
                 MultipleInputQuestionLine, ({"hSizeHintFM": 20},),
                 DirectMultTablesGenerator(register_cleanup_handler,
                                           seen=multSeen),
-                instruction=self.tr("Mot de passe <i>multiplications</i> :"),
+                instruction=self.tr("<i>Multiplication</i> password:"),
                 maxNbQuestions=nbDirectMultTables),
                          SubQuestionnaire(
                 MultipleInputQuestionLine, ({"hSizeHintFM": 20},),
                 DirectAddTablesGenerator(register_cleanup_handler,
                                          seen=addSeen),
-                instruction=self.tr("Mot de passe <i>additions</i> :"),
+                instruction=self.tr("<i>Addition</i> password:"),
                 maxNbQuestions=nbDirectAddTables),
                          SubQuestionnaire(
                 MultipleInputQuestionLine, ({"hSizeHintFM": 20},),
@@ -856,14 +856,14 @@ class MainWindow(QtGui.QMainWindow):
                 MultipleInputQuestionLine, ({"hSizeHintFM": 20},),
                 BasicSubstractionGenerator(register_cleanup_handler,
                                            seen=subSeen),
-                instruction=self.tr("Mot de passe <i>soustractions</i> :"),
+                instruction=self.tr("<i>Substraction</i> password:"),
                 maxNbQuestions=nbBasicSubstractions),
                          SubQuestionnaire(
                 MultipleInputQuestionLine, ({"hSizeHintFM": 20},),
                 RandomSubstractionGenerator(11, 100, seen=subSeen),
                 maxNbQuestions=nbRandomSubstractions, blendIntoPrev=True) ]
 
-        calcQuest = Questionnaire(self.tr("&Calcul"), calcSubQList,
+        calcQuest = Questionnaire(self.tr("&Calculus"), calcSubQList,
                                   icon=QtGui.QIcon(
                 QPixmapFromResource("images/cubic root.png")))
 
@@ -885,7 +885,7 @@ class MainWindow(QtGui.QMainWindow):
             if nbConjugations == 0:
                 break
 
-        conjQuest = Questionnaire(self.tr("C&onjugaison"), conjSubQList,
+        conjQuest = Questionnaire(self.tr("C&onjugation"), conjSubQList,
                                   icon=QtGui.QIcon(
                 QPixmapFromResource("images/pencil_benji_park_02.png")))
 
@@ -900,9 +900,9 @@ class MainWindow(QtGui.QMainWindow):
                 self.quitTimer.start(params["quit_delay"] * 1000)
 
             msgBox = QtGui.QMessageBox()
-            msgBox.setText(self.tr("Impossible de quitter maintenant."))
+            msgBox.setText(self.tr("Impossible to exit now."))
             msgBox.setInformativeText(self.tr(
-                    "Je vous suggère de réviser un peu avant de sortir."))
+                    "I suggest you to examine the corrections before leaving."))
             msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
             msgBox.setIcon(QtGui.QMessageBox.Information)
             msgBox.exec_()
@@ -916,13 +916,13 @@ class MainWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def about(self):
         QtGui.QMessageBox.about(self,
-                                self.tr("À propos de {0}").format(progname),
+                                self.tr("About {0}").format(progname),
                                 "{ident}\n\n{desc}\n\n{version_blurb}".format(
                 ident="{progname} {progversion}".format(
                     progname=progname, progversion=progversion),
                 desc=self.tr(
-                    "Petit programme permettant de vérifier et consolider "
-                    "les acquis avant de se détendre..."),
+                    "Little program that allows one to check and consolidate "
+                    "one's skills..."),
                 version_blurb=version_blurb))
 
     def createActions(self):
@@ -933,11 +933,11 @@ class MainWindow(QtGui.QMainWindow):
             self.testAct.triggered.connect(self.test)
 
         self.launchDesiredProgramAct = QtGui.QAction(
-            self.tr("&Lancer {0}").format(params["desired_program_pretty_name"]),
+            self.tr("&Launch {0}").format(params["desired_program_pretty_name"]),
             self)
         self.launchDesiredProgramAct.setShortcut(self.tr("Ctrl+L"))
         self.launchDesiredProgramAct.setStatusTip(
-            self.tr("Lancer le programme {0}").format(
+            self.tr("Launch the program {0}").format(
                 params["desired_program_pretty_name"]))
         self.launchDesiredProgramAct.setEnabled(False)
         self.launchDesiredProgramAct.triggered.connect(
@@ -946,31 +946,31 @@ class MainWindow(QtGui.QMainWindow):
         self.magicFormulaAct = QtGui.QAction(
             QtGui.QIcon(QPixmapFromResource(
                     "images/magic-wand-by-jhnri4_58480760.png")),
-            self.tr("&Formule magique"), self)
-        self.magicFormulaAct.setShortcut(self.tr("Ctrl+F"))
+            self.tr("&Magic word"), self)
+        self.magicFormulaAct.setShortcut(self.tr("Ctrl+M"))
         self.magicFormulaAct.setStatusTip(
-            self.tr("Jeter un sort"))
+            self.tr("Cast a spell"))
         self.magicFormulaAct.triggered.connect(
             self.magicFormula)
 
         self.exitAct = QtGui.QAction(
             app.style().standardIcon(QtGui.QStyle.SP_FileDialogEnd),
-            self.tr("&Quitter"), self)
+            self.tr("&Quit"), self)
         self.exitAct.setShortcut(self.tr("Ctrl+Q"))
         # We want this shortcut to work in all application windows.
         self.exitAct.setShortcutContext(QtCore.Qt.ApplicationShortcut)
-        self.exitAct.setStatusTip(self.tr("Quitter l'application"))
+        self.exitAct.setStatusTip(self.tr("Quit the application"))
         # self.exitAct.setEnabled(False)
         self.exitAct.triggered.connect(self.close)
 
         self.aboutAct = QtGui.QAction(self.tr(
-                "À propos de {0}").format(progname), self)
+                "About {0}").format(progname), self)
         self.aboutAct.setStatusTip(
-            self.tr("Affiche des informations sur le programme"))
+            self.tr("Display information about the program"))
         self.aboutAct.triggered.connect(self.about)
 
     def createMenus(self):
-        self.fileMenu = self.menuBar().addMenu(self.tr("&Fichier"))
+        self.fileMenu = self.menuBar().addMenu(self.tr("&File"))
         self.fileMenu.addAction(self.launchDesiredProgramAct)
         self.fileMenu.addAction(self.magicFormulaAct)
         if params["test_mode"]:
@@ -980,18 +980,18 @@ class MainWindow(QtGui.QMainWindow):
 
         self.menuBar().addSeparator()
 
-        self.helpMenu = self.menuBar().addMenu(self.tr("&Aide"))
+        self.helpMenu = self.menuBar().addMenu(self.tr("&Help"))
         self.helpMenu.addAction(self.aboutAct)
 
     def createToolBars(self):
-        self.fileToolBar = self.addToolBar(self.tr("Fichier"))
+        self.fileToolBar = self.addToolBar(self.tr("File"))
         if params["test_mode"]:
             self.fileToolBar.addAction(self.testAct)
         self.fileToolBar.addAction(self.launchDesiredProgramAct)
         self.fileToolBar.addAction(self.magicFormulaAct)
 
     def createStatusBar(self):
-        self.statusBar().showMessage(self.tr("Prêt"))
+        self.statusBar().showMessage(self.tr("Ready"))
 
     def initSettings(self):
         # This is done earlier, at application startup, to ensure other
@@ -1054,10 +1054,10 @@ class MainWindow(QtGui.QMainWindow):
             # Give an explanation if no image was displayed and the score
             # was too low to enable the program launcher
             msgBox = QtGui.QMessageBox()
-            msgBox.setText(self.tr("Mot de passe erroné."))
+            msgBox.setText(self.tr("Wrong password."))
             msgBox.setInformativeText(self.tr(
-                    "Il faut recommencer et réaliser un meilleur score "
-                    "pour pouvoir lancer {0} !").format(
+                    "You must try again and improve your score in order to "
+                    "be allowed to launch {0}!").format(
                     params["desired_program_pretty_name"]))
             msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
             msgBox.setIcon(QtGui.QMessageBox.Information)
@@ -1065,7 +1065,7 @@ class MainWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def onScoreUpdate(self):
-        msg = scoreText(self.tr("Score total : "),
+        msg = scoreText(self.tr("Total score: "),
                         self.mainWidget.score, self.mainWidget.maxScore)
         self.statusBar().showMessage(msg)
 
@@ -1094,8 +1094,8 @@ class MainWindow(QtGui.QMainWindow):
         r = random.randint(4, 99)
 
         text, ok = QtGui.QInputDialog.getText(
-            self, self.tr("Formule magique"),
-            self.tr("Je dis {0}. Veuillez entrer la formule magique.").format(
+            self, self.tr("Magic word"),
+            self.tr("I say {0}. Please enter the magic word.").format(
                 r),
             QtGui.QLineEdit.Password)
 
@@ -1133,8 +1133,8 @@ class MainWindow(QtGui.QMainWindow):
             assert exitStatus == QtCore.QProcess.CrashExit, exitStatus
             msgBox = QtGui.QMessageBox()
             msgBox.setText(self.tr(
-                    "Le programme '{0}' s'est terminé de manière anormale "
-                    "(peut-être tué par un signal)."
+                    "The program '{0}' terminated abnormally (maybe killed "
+                    "by a signal)."
                     ).format(program))
             msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
             msgBox.setIcon(QtGui.QMessageBox.Warning)
@@ -1148,12 +1148,12 @@ class MainWindow(QtGui.QMainWindow):
 
         msg = {
             QtCore.QProcess.FailedToStart:
-                self.tr("Le programme '{0}' n'a pas pu démarrer ; peut-être "
-                        "que l'exécutable est introuvable ou que vous n'avez "
-                        "pas les permissions requises.").format(program),
+                self.tr("The program '{0}' could not start; maybe the "
+                        "executable cannot be found or you don't have "
+                        "the required permissions.").format(program),
             QtCore.QProcess.UnknownError:
-                self.tr("Erreur inconnue lors de l'exécution du programme "
-                        "'{0}' (merci à Qt pour la précision du diagnostic)."
+                self.tr("Unknown error while executing the program "
+                        "'{0}' (thanks to Qt for the precise diagnosis)."
                         ).format(program) }
 
         if processError ==  QtCore.QProcess.Crashed:
@@ -1265,12 +1265,12 @@ def checkAlreadyRunningInstance():
         msgBox = QtGui.QMessageBox(
             QtGui.QMessageBox.Critical, app.tr(progname),
             app.tr(
-            "Impossible d'obtenir un emplacement de type <i>CacheLocation</i> "
-            "via QtGui.QDesktopServices.storageLocation()."),
+            "Unable to obtain a location of type <i>CacheLocation</i> "
+            "with QtGui.QDesktopServices.storageLocation()."),
             QtGui.QMessageBox.Ok)
         msgBox.setTextFormat(QtCore.Qt.RichText)
         msgBox.exec_()
-        sys.exit("Unable to obtain a CacheLocation from "
+        sys.exit("Unable to obtain a CacheLocation with "
                  "QtGui.QDesktopServices.storageLocation(). Aborting.")
 
     cacheDirDisplayName = str(QtGui.QDesktopServices.displayName(
@@ -1355,29 +1355,28 @@ def checkAlreadyRunningInstance():
             if hasattr(e, "filename"):
                 excMsg += ": " + e.filename
 
-            msg = app.tr(
-           "{excMsg}\n\n"
-           "Une autre instance de '{prog}' a acquis le fichier verrou '{lock}' "
-           "mais il est impossible de lire ce dernier pour déterminer "
-           "le PID de cette autre instance (pour la raison indiquée "
-           "ci-dessus). Ceci peut se produire par exemple si le fichier "
-           "verrou a été effacé par l'autre instance entre le moment "
-           "où nous avons cherché à le créer et celui où nous avons "
-           "essayé de le lire.\n\n"
-           "Remède : vérifiez que toutes les instances de '{prog}' sont "
-           "fermées et effacez le fichier verrou s'il existe encore.").format(
+            msg = app.tr("""\
+{excMsg}
+
+Another instance of '{prog}' has acquired the lock file '{lock}', but it is \
+impossible to read that file in order to determine the PID of the other \
+instance (for the reason indicated above). This can happen for instance if \
+the lock file was removed by the other instance between the moment \
+we tried to create it and the moment we tried to read it.
+
+Remedy: check that all instances of '{prog}' are closed and remove the lock \
+file manually if it still exists.""").format(
                 excMsg=excMsg, prog=progname, lock=lockFileDisplayName)
             textFormat = QtCore.Qt.PlainText
         else:
-            msg = app.tr(
-          "Il semble qu'il y ait déjà une instance de <i>{prog}</i> en "
-          "cours d'exécution (PID {pid}). Si ce n'est pas le cas, "
-          "veuillez supprimer le fichier verrou <tt>{lock}</tt>.\n\n"
-          "En raison du suivi des questions posées (par exemple, "
-          "ne pas poser deux fois la même question au cours d'une "
-          "même session), il n'est pas possible de lancer "
-          "simultanément plusieurs instances de <i>{prog}</i> sous le même "
-          "compte utilisateur.").format(
+            msg = app.tr("""\
+It seems there is already a running instance of <i>{prog}</i> (PID {pid}). \
+If this is not the case, please remove the lock file <tt>{lock}</tt>.
+
+Because of the monitoring of asked questions (in order, for instance, \
+not to ask the same question twice during a given session), it is not possible \
+to run several instances of <i>{prog}</i> simultaneously under the same \
+user account.""").format(
                 prog=progname, pid=pid, lock=lockFileDisplayName)
             textFormat = QtCore.Qt.RichText
 
@@ -1401,11 +1400,10 @@ def checkConfigFileVersion():
     if settings.contains("SuiviExos/TablesMultDirectCalcs"):
         msgBox = QtGui.QMessageBox(
             QtGui.QMessageBox.Critical, app.tr(progname),
-            app.tr(
-                "Le fichier de configuration <i>{0}</i> utilise un ancien "
-                "format. Veuillez supprimer ou renommer ce fichier avant "
-                "de relancer <i>{1}</i>.").format(settings.fileName(),
-                                                  progname),
+            app.tr("""\
+The configuration file <i>{0}</i> was written in an old format. Please \
+remove or rename this file before restarting <i>{1}</i>.""").format(
+                settings.fileName(), progname),
             QtGui.QMessageBox.Ok)
         msgBox.setTextFormat(QtCore.Qt.RichText)
         msgBox.exec_()
