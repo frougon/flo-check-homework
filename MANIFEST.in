@@ -1,0 +1,2 @@
+include MANIFEST.in ChangeLog README.rst flo-check-homework.decorate-data
+recursive-include flo_check_homework/images *.txt *.svg
