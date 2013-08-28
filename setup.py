@@ -46,8 +46,6 @@ def main():
     # directory (or zip file or egg...) as PYPKG. This is not the best
     # location according to the FHS, but will be fixed when distutils2 becomes
     # usable (if ever).
-    # The Qt resource system might still be used to ship translations done
-    # with Qt tools.
     #
     # create_resource_file("fch_resources.qrc",
     #                      os.path.join(PYPKG, "fch_resources.py"))
@@ -76,7 +74,8 @@ def main():
             "Operating System :: OS Independent",
             "Topic :: Education :: Computer Aided Instruction (CAI)"],
           packages=[PYPKG, "{0}.conjugations".format(PYPKG)],
-          package_data={PYPKG: ["images/*.png",
+          package_data={PYPKG: ["translations/*/*.qm",
+                                "images/*.png",
                                 "images/logo/*.png",
                                 "images/rewards/10-abysmal/*.jpg",
                                 "images/rewards/20-not_good_enough/*.jpg",

@@ -1,2 +1,4 @@
-include MANIFEST.in ChangeLog README.rst flo-check-homework.decorate-data
+include MANIFEST.in ChangeLog README.rst README.i18n
+include flo-check-homework.decorate-data flo-check-homework.pro *.ts Makefile
 recursive-include flo_check_homework/images *.txt *.svg
+recursive-include flo_check_homework/translations *.qm

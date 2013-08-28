@@ -21,17 +21,18 @@
 import sys, os, locale, getopt, subprocess, logging, operator, random, time, \
     math, numbers, errno, functools, pkgutil, posixpath
 from PyQt4 import QtCore, QtGui
+translate = QtCore.QCoreApplication.translate
+
+import textwrap
+tw = textwrap.TextWrapper(width=78, break_long_words=False,
+                          break_on_hyphens=True)
+from textwrap import dedent
 
 from . import fch_util, conjugations, image_widgets
 
 
 progname = os.path.basename(sys.argv[0])
 from . import version as progversion
-version_blurb = """Written by Florent Rougon.
-
-Copyright (c) 2011-2013 Florent Rougon
-This is free software; see the source for copying conditions.  There is NO
-warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."""
 
 usage = """Usage: %(progname)s [OPTION ...] [--] PROGRAM [ARGUMENT ...]
 Check specific skills before launching a program.
@@ -186,8 +187,211 @@ class HomeWorkCheckApp(QtGui.QApplication):
     def __init__(self, args):
         super().__init__(args)
 
+        # Not sure this is really useful with PyQt; however, either this or the
+        # corresponding settings in the .pro file (or both) is necessary for
+        # the first run of pylupdate4 to deal with UTF-8 correctly.
+        QtCore.QTextCodec.setCodecForCStrings(
+            QtCore.QTextCodec.codecForName("UTF-8"))
+        QtCore.QTextCodec.setCodecForTr(QtCore.QTextCodec.codecForName("UTF-8"))
+
+        self.setupTranslations()
         self.mainWindow = None           # To be created
         self.aboutToQuit.connect(run_cleanup_handlers_for_program_exit)
+
+    def setupTranslations(self):
+        # Get a list of locale names (such as 'C', 'fr-FR' or 'en-US') for
+        # translation purposes, in decreasing order of preference.
+        locales = QtCore.QLocale().uiLanguages()
+        # If the translators are garbage collected (or the data used to
+        # initialize them), then translation doesn't work.
+        self.l10n_data = []
+
+        for loc in reversed(list(locales)):
+            if loc == "C":
+                continue
+            langCode = loc.split('-')[0] # extract the language part
+
+            try:
+                # pkgutil resource paths use '/' to separate components
+                data = pkgutil.get_data(
+                    __package__, "translations/{lang}/{prog}.{lang}.qm".format(
+                        lang=langCode, prog=progname))
+            # Precisely, this is a FileNotFoundError, but this exception is not
+            # available before Python 3.3.
+            except os.error as e:
+                continue
+
+            translator = QtCore.QTranslator()
+            # To make sure the garbage collector doesn't remove these too early
+            self.l10n_data.append((translator, data))
+            if translator.loadFromData(data):
+                self.installTranslator(translator)
+
+    # Because of all the things we do with QSettings (especially in
+    # exercise_generator.py), it is not conceivable to run several instances of
+    # this program simultaneously.
+    #
+    # This method used to be a standalone function defined at module scope, but
+    # translations with app.tr() were not able to properly determine the
+    # context at runtime, with the result that messages from this function were
+    # left untranslated.
+    def checkAlreadyRunningInstance(self):
+        # Find a place to store the lock file in
+        cacheDir = str(QtGui.QDesktopServices.storageLocation(
+                QtGui.QDesktopServices.CacheLocation))
+
+        if not cacheDir:
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Critical, self.tr(progname),
+                self.tr(
+                "Unable to obtain a location of type <i>CacheLocation</i> "
+                "with QtGui.QDesktopServices.storageLocation()."),
+                QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.RichText)
+            msgBox.exec_()
+            sys.exit("Unable to obtain a CacheLocation with "
+                     "QtGui.QDesktopServices.storageLocation(). Aborting.")
+
+        cacheDirDisplayName = str(QtGui.QDesktopServices.displayName(
+                QtGui.QDesktopServices.CacheLocation))
+        cacheDirDisplayName = cacheDirDisplayName or cacheDir
+
+        if not os.path.isdir(cacheDir):
+            os.makedirs(cacheDir)
+
+        lockFile = os.path.join(cacheDir, "%s.pid" % progname)
+        lockFileDisplayName = os.path.join(cacheDirDisplayName, "%s.pid" % progname)
+        try:
+            # Genuine file locking APIs are a real mess:
+            #   1) The fcntl module isn't available on all platforms, in
+            #      particular it is not available on Windows.
+            #   2) fcntl.flock has a number of issues, one of which being that one
+            #      cannot use it to obtain the PID of the process holding an
+            #      exclusive lock on the file we are trying to lock (if any).
+            #   3) fcntl.fcntl could be nice (the C interface is manageable) but
+            #      the Python interface requires one to pass a byte string that is
+            #      a valid struct flock, and this seems to be impossible to do in
+            #      any portable way, even with Ctypes (I think), since for
+            #      instance the type of some fields (e.g., off_t vs. off64_t) is
+            #      determined at compile time at least on Linux, via a #ifdef
+            #      test. Moreover, the order of the fields is unspecified and only
+            #      known to the C compiler (and there may be holes, etc.).
+            #   4) fcntl.lockf, in spite of its silly name (since its interface
+            #      uses the constants of flock and not of the POSIX lockf function
+            #      and it actually is nothing else than an interface to fcntl(2)
+            #      locking), could be useful but it doesn't allow access to the
+            #      PID of the locking process in case one can't set a lock on a
+            #      portion of a file, although the underlying fcntl(2) system call
+            #      does provide this information. What a pity...
+            #   5) The lockfile.py module by Skip Montanaro could be interesting but
+            #      isn't part of the Python standard library and seems to have
+            #      outstanding issues for quite some time already (as of Dec
+            #      2012).
+            #
+            # For all these reasons, we'll use a simple lock file and write the
+            # PID to this lock file, followed by \n to let readers know when they
+            # have read the whole PID and not only part of its decimal
+            # representation.
+            lockFileFD = os.open(lockFile, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                                 0o666)
+        except os.error as e:
+            if e.errno != errno.EEXIST:
+                raise
+            otherProcessHasLock = True
+        else:
+            # Our process is now holding the lock.
+            otherProcessHasLock = False
+
+        if otherProcessHasLock:
+            time.sleep(1)
+            # We know the PID has been fully written when we encounter os.linesep.
+            try:
+                with open(lockFile, mode="r", encoding="utf-8",
+                          newline=os.linesep) as f:
+                    prevSize = 0
+                    while True:
+                        # We use stat(2) to determine when the file grows and
+                        # sleep at regular intervals. This is not the most elegant
+                        # algorithm ever written but is nevertheless reliable.
+                        # inotify would be more elegant but is Linux-specific (so
+                        # far).
+                        size = os.stat(lockFile).st_size
+                        if size != prevSize:
+                            f.seek(0, os.SEEK_SET)
+                            line = f.readline()
+
+                            # os.linesep marks the end of the PID and guarantees
+                            # we are not reading a half-written PID.
+                            if line.endswith(os.linesep):
+                                pid = int(line[:-len(os.linesep)])
+                                break
+                            else:
+                                prevSize = size
+
+                        time.sleep(0.1)
+            except (os.error, IOError) as e:
+                excMsg = e.strerror
+                if hasattr(e, "filename"):
+                    excMsg += ": " + e.filename
+
+                msg = self.tr("""\
+{excMsg}
+
+Another instance of '{prog}' has acquired the lock file '{lock}', but it is \
+impossible to read that file in order to determine the PID of the other \
+instance (for the reason indicated above). This can happen for instance if \
+the lock file was removed by the other instance between the moment \
+we tried to create it and the moment we tried to read it.
+
+Remedy: check that all instances of '{prog}' are closed and remove the lock \
+file manually if it still exists.""").format(
+                    excMsg=excMsg, prog=progname, lock=lockFileDisplayName)
+                textFormat = QtCore.Qt.PlainText
+            else:
+                msg = self.tr("""<p>
+It seems there is already a running instance of <i>{prog}</i> (PID {pid}). \
+If this is not the case, please remove the lock file <tt>{lock}</tt>.
+</p>
+
+<p>
+Because of the monitoring of asked questions (in order, for instance, \
+not to ask the same question twice during a given session), it is not possible \
+to run several instances of <i>{prog}</i> simultaneously under the same \
+user account.</p>""").format(
+                    prog=progname, pid=pid, lock=lockFileDisplayName)
+                textFormat = QtCore.Qt.RichText
+
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Critical, self.tr(progname),
+                msg, QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(textFormat)
+            msgBox.exec_()
+        else:
+            # Write our PID to the lock file, followed by os.linesep
+            with open(lockFileFD, mode="w", encoding="utf-8") as f:
+                f.write("%d\n" % os.getpid())
+
+        return (otherProcessHasLock, lockFile)
+
+    # Same remark concerning the translation context as for
+    # checkAlreadyRunningInstance().
+    def checkConfigFileVersion(self):
+        res = True
+        settings = QtCore.QSettings()
+
+        if settings.contains("SuiviExos/TablesMultDirectCalcs"):
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Critical, self.tr(progname),
+                self.tr("""\
+The configuration file <i>{0}</i> was written in an old format. Please \
+remove or rename this file before restarting <i>{1}</i>.""").format(
+                    settings.fileName(), progname),
+                QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.RichText)
+            msgBox.exec_()
+            res = False
+
+        return res
 
 
 class InputField(QtGui.QLineEdit):
@@ -585,8 +789,8 @@ def _scoreTextConv(x, precision=1):
         return locale.format("%.*f", (precision, x))
 
 def scoreText(prefix, score, maxScore):
-    return app.tr("{0}{1}/{2}").format(prefix, _scoreTextConv(score),
-                                       _scoreTextConv(maxScore))
+    return translate("app", "{0}{1}/{2}").format(
+        prefix, _scoreTextConv(score), _scoreTextConv(maxScore))
 
 
 class Questionnaire(QtGui.QWidget):
@@ -885,7 +1089,7 @@ class MainWindow(QtGui.QMainWindow):
             if nbConjugations == 0:
                 break
 
-        conjQuest = Questionnaire(self.tr("C&onjugation"), conjSubQList,
+        conjQuest = Questionnaire(self.tr("French C&onjugation"), conjSubQList,
                                   icon=QtGui.QIcon(
                 QPixmapFromResource("images/pencil_benji_park_02.png")))
 
@@ -915,15 +1119,16 @@ class MainWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def about(self):
-        QtGui.QMessageBox.about(self,
-                                self.tr("About {0}").format(progname),
-                                "{ident}\n\n{desc}\n\n{version_blurb}".format(
-                ident="{progname} {progversion}".format(
-                    progname=progname, progversion=progversion),
-                desc=self.tr(
-                    "Little program that allows one to check and consolidate "
-                    "one's skills..."),
-                version_blurb=version_blurb))
+        aboutText = """\
+{ident}\n\n{desc}\n\n{version_blurb1}\n{version_blurb2}""".format(
+            ident=self.tr("{progname} {progversion}").format(
+                                progname=progname, progversion=progversion),
+            desc=self.tr(
+        "Little program that allows one to check and consolidate "
+        "one's skills..."),
+            version_blurb1=version_blurb1, version_blurb2=version_blurb2)
+        QtGui.QMessageBox.about(self, self.tr("About {0}").format(progname),
+                                aboutText)
 
     def createActions(self):
         if params["test_mode"]:
@@ -1191,8 +1396,9 @@ def process_command_line_and_config_file(arguments):
             print(usage)
             return ("exit", 0)
         elif option == "--version":
-            print("{name} {version}\n{blurb}".format(
-                    name=progname, version=progversion, blurb=version_blurb))
+            print("{name} {version}\n{blurb1}\n{blurb2}".format(
+                    name=progname, version=progversion, blurb1=version_blurb1,
+                    blurb2=tw.fill(version_blurb2)))
             return ("exit", 0)
 
     # Now, require a correct invocation.
@@ -1253,165 +1459,6 @@ def process_command_line_and_config_file(arguments):
     return ("continue", 0)
 
 
-# Because of all the things we do with QSettings (especially in
-# exercise_generator.py), it is not conceivable to run several instances of
-# this program simultaneously.
-def checkAlreadyRunningInstance():
-    # Find a place to store the lock file in
-    cacheDir = str(QtGui.QDesktopServices.storageLocation(
-            QtGui.QDesktopServices.CacheLocation))
-
-    if not cacheDir:
-        msgBox = QtGui.QMessageBox(
-            QtGui.QMessageBox.Critical, app.tr(progname),
-            app.tr(
-            "Unable to obtain a location of type <i>CacheLocation</i> "
-            "with QtGui.QDesktopServices.storageLocation()."),
-            QtGui.QMessageBox.Ok)
-        msgBox.setTextFormat(QtCore.Qt.RichText)
-        msgBox.exec_()
-        sys.exit("Unable to obtain a CacheLocation with "
-                 "QtGui.QDesktopServices.storageLocation(). Aborting.")
-
-    cacheDirDisplayName = str(QtGui.QDesktopServices.displayName(
-            QtGui.QDesktopServices.CacheLocation))
-    cacheDirDisplayName = cacheDirDisplayName or cacheDir
-
-    if not os.path.isdir(cacheDir):
-        os.makedirs(cacheDir)
-
-    lockFile = os.path.join(cacheDir, "%s.pid" % progname)
-    lockFileDisplayName = os.path.join(cacheDirDisplayName, "%s.pid" % progname)
-    try:
-        # Genuine file locking APIs are a real mess:
-        #   1) The fcntl module isn't available on all platforms, in
-        #      particular it is not available on Windows.
-        #   2) fcntl.flock has a number of issues, one of which being that one
-        #      cannot use it to obtain the PID of the process holding an
-        #      exclusive lock on the file we are trying to lock (if any).
-        #   3) fcntl.fcntl could be nice (the C interface is manageable) but
-        #      the Python interface requires one to pass a byte string that is
-        #      a valid struct flock, and this seems to be impossible to do in
-        #      any portable way, even with Ctypes (I think), since for
-        #      instance the type of some fields (e.g., off_t vs. off64_t) is
-        #      determined at compile time at least on Linux, via a #ifdef
-        #      test. Moreover, the order of the fields is unspecified and only
-        #      known to the C compiler (and there may be holes, etc.).
-        #   4) fcntl.lockf, in spite of its silly name (since its interface
-        #      uses the constants of flock and not of the POSIX lockf function
-        #      and it actually is nothing else than an interface to fcntl(2)
-        #      locking), could be useful but it doesn't allow access to the
-        #      PID of the locking process in case one can't set a lock on a
-        #      portion of a file, although the underlying fcntl(2) system call
-        #      does provide this information. What a pity...
-        #   5) The lockfile.py module by Skip Montanaro could be interesting but
-        #      isn't part of the Python standard library and seems to have
-        #      outstanding issues for quite some time already (as of Dec
-        #      2012).
-        #
-        # For all these reasons, we'll use a simple lock file and write the
-        # PID to this lock file, followed by \n to let readers know when they
-        # have read the whole PID and not only part of its decimal
-        # representation.
-        lockFileFD = os.open(lockFile, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                             0o666)
-    except os.error as e:
-        if e.errno != errno.EEXIST:
-            raise
-        otherProcessHasLock = True
-    else:
-        # Our process is now holding the lock.
-        otherProcessHasLock = False
-
-    if otherProcessHasLock:
-        time.sleep(1)
-        # We know the PID has been fully written when we encounter os.linesep.
-        try:
-            with open(lockFile, mode="r", encoding="utf-8",
-                      newline=os.linesep) as f:
-                prevSize = 0
-                while True:
-                    # We use stat(2) to determine when the file grows and
-                    # sleep at regular intervals. This is not the most elegant
-                    # algorithm ever written but is nevertheless reliable.
-                    # inotify would be more elegant but is Linux-specific (so
-                    # far).
-                    size = os.stat(lockFile).st_size
-                    if size != prevSize:
-                        f.seek(0, os.SEEK_SET)
-                        line = f.readline()
-
-                        # os.linesep marks the end of the PID and guarantees
-                        # we are not reading a half-written PID.
-                        if line.endswith(os.linesep):
-                            pid = int(line[:-len(os.linesep)])
-                            break
-                        else:
-                            prevSize = size
-
-                    time.sleep(0.1)
-        except (os.error, IOError) as e:
-            excMsg = e.strerror
-            if hasattr(e, "filename"):
-                excMsg += ": " + e.filename
-
-            msg = app.tr("""\
-{excMsg}
-
-Another instance of '{prog}' has acquired the lock file '{lock}', but it is \
-impossible to read that file in order to determine the PID of the other \
-instance (for the reason indicated above). This can happen for instance if \
-the lock file was removed by the other instance between the moment \
-we tried to create it and the moment we tried to read it.
-
-Remedy: check that all instances of '{prog}' are closed and remove the lock \
-file manually if it still exists.""").format(
-                excMsg=excMsg, prog=progname, lock=lockFileDisplayName)
-            textFormat = QtCore.Qt.PlainText
-        else:
-            msg = app.tr("""\
-It seems there is already a running instance of <i>{prog}</i> (PID {pid}). \
-If this is not the case, please remove the lock file <tt>{lock}</tt>.
-
-Because of the monitoring of asked questions (in order, for instance, \
-not to ask the same question twice during a given session), it is not possible \
-to run several instances of <i>{prog}</i> simultaneously under the same \
-user account.""").format(
-                prog=progname, pid=pid, lock=lockFileDisplayName)
-            textFormat = QtCore.Qt.RichText
-
-        msgBox = QtGui.QMessageBox(
-            QtGui.QMessageBox.Critical, app.tr(progname),
-            msg, QtGui.QMessageBox.Ok)
-        msgBox.setTextFormat(textFormat)
-        msgBox.exec_()
-    else:
-        # Write our PID to the lock file, followed by os.linesep
-        with open(lockFileFD, mode="w", encoding="utf-8") as f:
-            f.write("%d\n" % os.getpid())
-
-    return (otherProcessHasLock, lockFile)
-
-
-def checkConfigFileVersion():
-    res = True
-    settings = QtCore.QSettings()
-
-    if settings.contains("SuiviExos/TablesMultDirectCalcs"):
-        msgBox = QtGui.QMessageBox(
-            QtGui.QMessageBox.Critical, app.tr(progname),
-            app.tr("""\
-The configuration file <i>{0}</i> was written in an old format. Please \
-remove or rename this file before restarting <i>{1}</i>.""").format(
-                settings.fileName(), progname),
-            QtGui.QMessageBox.Ok)
-        msgBox.setTextFormat(QtCore.Qt.RichText)
-        msgBox.exec_()
-        res = False
-
-    return res
-
-
 # Early initialization
 random.seed()
 locale.setlocale(locale.LC_ALL, '')
@@ -1431,8 +1478,15 @@ for size in ("32x32", "16x16", "14x14"):
             "images/logo/logo_{0}.png".format(size)))
 app.setWindowIcon(icon)
 
-# l10n with Qt's QObject.tr() is probably better with the QApplication object
-# well initialized to give the context.
+# Working l10n requires the QApplication instance well initialized to have the
+# QTranslator objects set up and installed in the application.
+version_blurb1 = translate("app", """Written by Florent Rougon.
+
+Copyright (c) 2011-2013  Florent Rougon""")
+version_blurb2 = translate("app", """\
+This is free software; see the source for copying conditions.  There is NO \
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
+
 from .exercise_generator import Seen, EuclidianDivisionGenerator, \
     DirectMultTablesGenerator, \
     DirectAddTablesGenerator, RandomAdditionGenerator, \
@@ -1446,14 +1500,14 @@ if action == "exit":
     sys.exit(retcode)
 
 # Use a lock file to determine if another instance is already running
-locked, lockFile = checkAlreadyRunningInstance()
+locked, lockFile = app.checkAlreadyRunningInstance()
 if locked:
     sys.exit(1)
 
 # If we are here, it means we have just created the lock file containing
 # our PID, and we are responsible for removing it.
 try:
-    if not checkConfigFileVersion():
+    if not app.checkConfigFileVersion():
         sys.exit(1)
 
     app.mainWindow = MainWindow()

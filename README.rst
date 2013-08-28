@@ -4,6 +4,9 @@ Program allowing to run other programs only after some "homework" has been done
 A way to consolidate calculus and grammar skills
 -------------------------------------------------------------------------------
 
+General idea
+------------
+
 flo-check-homework presents one or more questionnaires to the user. Once all
 questions have been answered, and if the score exceeds a predefined threshold,
 a special button is enabled. When pressed, this button launches the program
@@ -63,16 +66,26 @@ freedesktop .desktop files usually don't specify a full path to the executable
 report a bug to the game in question). The format of .desktop files is
 described in the `Desktop Entry specification`_.
 
-This version of flo-check-homework has been tested with Python 3.3.0, Qt 4.6.3
-and PyQt 4.9.6. Any version of Python 3 should work, any not-too-old version
-of Qt 4 should work too, but the dependency on not-too-old PyQt is stricter.
-At least PyQt 4.7.3 has significant incompatibilities with version 4.9.6 and
-will not work with this version of flo-check-homework.
 
-flo-check-homework has been tested on Linux. It should work on any platform
-with the aforementioned dependencies installed, but trivial bugs are expected
-on non-Unix platforms as no test whatsoever has been done on such platforms.
-Please report.
+Requirements
+------------
+
+The following software is required to run flo-check-homework:
+  - any version of Python 3;
+  - Qt 4.8 or later;
+  - PyQt 4.10.3 is known to work, version 4.9 should be enough and older
+    versions will most probably not work with this version of
+    flo-check-homework.
+
+Version 0.9.11 of flo-check-homework has been tested on Linux with
+Python 3.3.0, Qt 4.8.2 and PyQt 4.10.3. It should work on any platform with
+the aforementioned dependencies installed, but trivial bugs are likely to pop
+up on non-Unix platforms as no test whatsoever has been done on them. Please
+report.
+
+
+Additional notes
+----------------
 
 Since flo-check-homework-decorate-games is currently only able to generate
 shell scripts, it is not expected to be of any use on platforms that cannot
@@ -89,13 +102,6 @@ angry-looking dogs easily found with Google Images, but unfortunately, they
 all appear to be non-free. If you have good suggestions of free
 software-licensed images to improve this program, please advise.
 
-Currently, the relevant strings in flo-check-homework are marked as
-translatable for Qt but are written in French. This is a bug that should be
-fixed (I did not intend to distribute the program to an audience that doesn't
-speak French at first). However, running it under a French locale is still
-useful for French-speaking users, as the parts actually depending on French
-grammar rules (and not used to learn French!) are only activated under French
-locales (humoristic tooltips for now).
 
 .. _freedesktop: http://www.freedesktop.org/
 .. _Desktop Entry specification: http://www.freedesktop.org/wiki/Specifications/desktop-entry-spec
