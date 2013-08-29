@@ -59,7 +59,7 @@ def main():
           url="http://people.via.ecp.fr/~flo/",
           download_url=\
               "http://people.via.ecp.fr/~flo/projects/flo-check-homework/"
-          "dist/%s-%s.tar.gz" % (PACKAGE, VERSION),
+          "dist/%s-%s.tar.bz2" % (PACKAGE, VERSION),
           keywords=[PACKAGE, "education", "learning", "calculus", "grammar"],
           requires=["PyQt4 (>=4.9)"],
           classifiers=[
