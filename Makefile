@@ -1,3 +1,7 @@
+# This Makefile is designed to help with the translation process of
+# flo-check-homework into various languages. If you want to install
+# flo-check-homework, please refer to INSTALL.txt.
+
 # The default target rebuilds the .qm files that are older than their
 # corresponding .ts source.
 LANGUAGES := fr

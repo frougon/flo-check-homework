@@ -13,3 +13,6 @@ __pycache__/
 
 # Binary translation files generated from the .ts files
 /flo_check_homework/translations/*/*.qm
+
+# Automatically generated from ChangeLog.init and the git log
+ChangeLog

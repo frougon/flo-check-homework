@@ -83,6 +83,8 @@ the aforementioned dependencies installed, but trivial bugs are likely to pop
 up on non-Unix platforms as no test whatsoever has been done on them. Please
 report.
 
+For installation instructions, please refer to INSTALL.txt.
+
 
 Additional notes
 ----------------
