@@ -13,7 +13,7 @@ a special button is enabled. When pressed, this button launches the program
 (with optional arguments) that was specified on flo-check-homework's command
 line.
 
-A "magic formula" button allows to bypass the test in case the pupil has
+A "magic formula" button allows one to bypass the test in case the pupil has
 already done his homework in another way. It also makes it possible to exit
 the program immediately.
 
@@ -71,6 +71,7 @@ Requirements
 ------------
 
 The following software is required to run flo-check-homework:
+
   - any version of Python 3;
   - Qt 4.8 or later;
   - PyQt 4.10.3 is known to work, version 4.9 should be enough and older
@@ -78,12 +79,34 @@ The following software is required to run flo-check-homework:
     flo-check-homework.
 
 Version 0.9.11 of flo-check-homework has been tested on Linux with
-Python 3.3.0, Qt 4.8.2 and PyQt 4.10.3. It should work on any platform with
+Python 3.3.2, Qt 4.8.2 and PyQt 4.10.3. It should work on any platform with
 the aforementioned dependencies installed, but trivial bugs are likely to pop
 up on non-Unix platforms as no test whatsoever has been done on them. Please
 report.
 
 For installation instructions, please refer to INSTALL.txt.
+
+
+Running flo-check-homework from the Git repository
+--------------------------------------------------
+
+flo-check-homework is maintained in a `Git repository
+<https://github.com/frougon/flo-check-homework>`_ that can be cloned with::
+
+  git clone https://github.com/frougon/flo-check-homework
+
+It is possible to run flo-check-homework from a clone of that repository, but
+two things that are not part of it have to be set up in order for everything
+to work properly:
+
+  - the flo_check_homework/images directory tree containing “reward images”
+    must be copied from a release tarball, otherwise there will be an error
+    when all questions have been answered and the program tries to show an
+    image;
+  - the .qm files (used for translations) that are relevant to your locale
+    settings must be generated from the corresponding .ts source files; this
+    can be done automatically with the Makefile shipped in the top-level
+    directory of the Git repository, provided you have GNU Make (run 'make').
 
 
 Additional notes

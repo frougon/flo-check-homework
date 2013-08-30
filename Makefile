@@ -2,6 +2,9 @@
 # flo-check-homework into various languages. If you want to install
 # flo-check-homework, please refer to INSTALL.txt.
 
+LRELEASE := lrelease-qt4
+PYLUPDATE := pylupdate4
+
 # The default target rebuilds the .qm files that are older than their
 # corresponding .ts source.
 LANGUAGES := fr
@@ -13,17 +16,17 @@ all: $(QM_FILES)
 define qm_rule
 flo_check_homework/translations/$1/flo-check-homework.$1.qm: \
                                                 flo-check-homework.$1.ts
-	lrelease-qt4 '$$<' -qm '$$@'
+	$(LRELEASE) '$$<' -qm '$$@'
 endef
 
 $(foreach lang,$(LANGUAGES),$(eval $(call qm_rule,$(lang))))
 
 refreshts:
         # May be used with -noobsolete to remove obsolete strings
-	pylupdate4 flo-check-homework.pro
+	$(PYLUPDATE) flo-check-homework.pro
 
 refreshts_noobs:
-	pylupdate4 -noobsolete flo-check-homework.pro
+	$(PYLUPDATE) -noobsolete flo-check-homework.pro
 
 clean:
 	rm -f $(QM_FILES)
