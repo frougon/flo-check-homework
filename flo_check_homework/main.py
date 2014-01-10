@@ -991,6 +991,8 @@ class MainWindow(QtGui.QMainWindow):
         self.quitTimer.setSingleShot(True)
         self.quitTimer.timeout.connect(self.quitTimerTimeout)
 
+        self.magicFormulaAttempts = 0
+
         self.desiredProgramProcess = QtCore.QProcess(self)
         self.desiredProgramProcess.setProcessChannelMode(
             QtCore.QProcess.ForwardedChannels)
@@ -1296,12 +1298,29 @@ class MainWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def magicFormula(self):
-        r = random.randint(4, 99)
+        maxAttempts = 3
+
+        if self.magicFormulaAttempts >= maxAttempts:
+            msgBox = QtGui.QMessageBox()
+            msgBox.setText(self.tr(
+                    "Too many failed attempts for the magic word."))
+            msgBox.setInformativeText(self.tr(
+                    "After {0} failed attempts, the magic wand stops working.")
+                                      .format(maxAttempts))
+            msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
+            msgBox.setIcon(QtGui.QMessageBox.Information)
+            msgBox.exec_()
+            return
+
+        self.magicFormulaAttempts += 1
+
+        R1 = random.randint(4, 99)
+        R2 = random.randint(4, 99)
 
         text, ok = QtGui.QInputDialog.getText(
             self, self.tr("Magic word"),
-            self.tr("I say {0}. Please enter the magic word.").format(
-                r),
+            self.tr("I say {0} and {1}. Please enter the magic word.").format(
+                R1, R2),
             QtGui.QLineEdit.Password)
 
         h = time.localtime().tm_hour
@@ -1312,7 +1331,11 @@ class MainWindow(QtGui.QMainWindow):
             except ValueError:
                 return
 
-            if i == 10*h + int(math.sqrt(r)):
+            r1 = int(math.sqrt(R1))
+            r2 = int(math.sqrt(R2))
+
+            if i == 10*(h+r1) + r2:
+                self.magicFormulaAct.setEnabled(False)
                 self.launchDesiredProgramAct.setEnabled(True)
                 self.allowedToQuit = True
 
