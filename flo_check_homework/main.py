@@ -259,38 +259,42 @@ class HomeWorkCheckApp(QtGui.QApplication):
         if not os.path.isdir(cacheDir):
             os.makedirs(cacheDir)
 
-        lockFile = os.path.join(cacheDir, "%s.pid" % progname)
-        lockFileDisplayName = os.path.join(cacheDirDisplayName, "%s.pid" % progname)
+        lockFile = os.path.join(cacheDir, "{0}.pid".format(progname))
+        lockFileDisplayName = os.path.join(cacheDirDisplayName,
+                                           "{0}.pid".format(progname))
         try:
             # Genuine file locking APIs are a real mess:
             #   1) The fcntl module isn't available on all platforms, in
             #      particular it is not available on Windows.
-            #   2) fcntl.flock has a number of issues, one of which being that one
-            #      cannot use it to obtain the PID of the process holding an
-            #      exclusive lock on the file we are trying to lock (if any).
-            #   3) fcntl.fcntl could be nice (the C interface is manageable) but
-            #      the Python interface requires one to pass a byte string that is
-            #      a valid struct flock, and this seems to be impossible to do in
-            #      any portable way, even with Ctypes (I think), since for
-            #      instance the type of some fields (e.g., off_t vs. off64_t) is
-            #      determined at compile time at least on Linux, via a #ifdef
-            #      test. Moreover, the order of the fields is unspecified and only
-            #      known to the C compiler (and there may be holes, etc.).
+            #   2) fcntl.flock has a number of issues, one of which being that
+            #      one cannot use it to obtain the PID of the process holding
+            #      an exclusive lock on the file we are trying to lock (if
+            #      any).
+            #   3) fcntl.fcntl could be nice (the C interface is manageable)
+            #      but the Python interface requires one to pass a byte string
+            #      that is a valid struct flock, and this seems to be
+            #      impossible to do in any portable way, even with Ctypes (I
+            #      think), since for instance the type of some fields (e.g.,
+            #      off_t vs. off64_t) is determined at compile time at least on
+            #      Linux, via a #ifdef test. Moreover, the order of the fields
+            #      is unspecified and only known to the C compiler (and there
+            #      may be holes, etc.).
             #   4) fcntl.lockf, in spite of its silly name (since its interface
-            #      uses the constants of flock and not of the POSIX lockf function
-            #      and it actually is nothing else than an interface to fcntl(2)
-            #      locking), could be useful but it doesn't allow access to the
-            #      PID of the locking process in case one can't set a lock on a
-            #      portion of a file, although the underlying fcntl(2) system call
-            #      does provide this information. What a pity...
-            #   5) The lockfile.py module by Skip Montanaro could be interesting but
-            #      isn't part of the Python standard library and seems to have
-            #      outstanding issues for quite some time already (as of Dec
-            #      2012).
+            #      uses the constants of flock and not of the POSIX lockf
+            #      function and it actually is nothing else than an interface
+            #      to fcntl(2) locking), could be useful but it doesn't allow
+            #      access to the PID of the locking process in case one can't
+            #      set a lock on a portion of a file, although the underlying
+            #      fcntl(2) system call does provide this information. What a
+            #      pity...
+            #   5) The lockfile.py module by Skip Montanaro could be
+            #      interesting but isn't part of the Python standard library
+            #      and seems to have outstanding issues for quite some time
+            #      already (as of Dec 2012).
             #
             # For all these reasons, we'll use a simple lock file and write the
-            # PID to this lock file, followed by \n to let readers know when they
-            # have read the whole PID and not only part of its decimal
+            # PID to this lock file, followed by \n to let readers know when
+            # they have read the whole PID and not only part of its decimal
             # representation.
             lockFileFD = os.open(lockFile, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
                                  0o666)
@@ -304,17 +308,18 @@ class HomeWorkCheckApp(QtGui.QApplication):
 
         if otherProcessHasLock:
             time.sleep(1)
-            # We know the PID has been fully written when we encounter os.linesep.
+            # We know the PID has been fully written when we encounter
+            # os.linesep.
             try:
                 with open(lockFile, mode="r", encoding="utf-8",
                           newline=os.linesep) as f:
                     prevSize = 0
                     while True:
                         # We use stat(2) to determine when the file grows and
-                        # sleep at regular intervals. This is not the most elegant
-                        # algorithm ever written but is nevertheless reliable.
-                        # inotify would be more elegant but is Linux-specific (so
-                        # far).
+                        # sleep at regular intervals. This is not the most
+                        # elegant algorithm ever written but is nevertheless
+                        # reliable. inotify would be more elegant but is
+                        # Linux-specific (so far).
                         size = os.stat(lockFile).st_size
                         if size != prevSize:
                             f.seek(0, os.SEEK_SET)
