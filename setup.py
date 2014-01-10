@@ -23,6 +23,7 @@
 
 import os, sys, subprocess, textwrap
 from distutils.core import setup
+import flo_check_homework       # To access flo_check_homework.version_info
 
 PACKAGE = "flo-check-homework"  # PyPI package name
 PYPKG = "flo_check_homework"    # name of the main Python package
@@ -30,8 +31,9 @@ MAIN_PROGNAME = "flo-check-homework" # name of the main program
 DECORATE_PROGNAME = "flo-check-homework-decorate-games"
 DECORATE_SAMPLE_DATAFILE = "flo-check-homework-decorate-games-data"
 
-from flo_check_homework import version as VERSION
-
+from flo_check_homework import __version__ as VERSION
+VERSION_NOSUFFIX = '.'.join([ str(i)
+                              for i in flo_check_homework.version_info[:3] ])
 
 def main():
     # Using the Qt resource system for images wastes a lot of space and is
@@ -59,7 +61,7 @@ def main():
           url="http://people.via.ecp.fr/~flo/",
           download_url=\
               "http://people.via.ecp.fr/~flo/projects/flo-check-homework/"
-          "dist/%s-%s.tar.bz2" % (PACKAGE, VERSION),
+          "dist/{}/{}-{}.tar.bz2".format(VERSION_NOSUFFIX, PACKAGE, VERSION),
           keywords=[PACKAGE, "education", "learning", "calculus", "grammar"],
           requires=["PyQt4 (>=4.9)"],
           classifiers=[

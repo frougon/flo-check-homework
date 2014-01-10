@@ -32,7 +32,7 @@ from . import fch_util, conjugations, image_widgets
 
 
 progname = os.path.basename(sys.argv[0])
-from . import version as progversion
+from . import __version__ as progversion
 
 usage = """Usage: %(progname)s [OPTION ...] [--] PROGRAM [ARGUMENT ...]
 Check specific skills before launching a program.
