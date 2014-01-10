@@ -45,14 +45,16 @@ the following properties:
 
 It is possible to setup launcher scripts that call flo-check-homework with the
 appropriate parameters depending on the script (and parameters passed to the
-script). The flo-check-homework-decorate-games program is provided to help
-automate such a setup. Basically, you write a list of programs/games in a file
-which we'll call DATAFILE for the sake of the example (see
-flo-check-homework-decorate-games-data for an example of such a file). Then,
-you run flo-check-homework-decorate-games's as a user that has permission to
-write to /usr/local/games, providing the relevant data on its standard input:
+script). The flo-check-homework-decorate-games program from the 'tools'
+directory is provided to help automate such a setup. Basically, you write a
+list of programs/games in an XML file which we'll call DATAFILE for the sake
+of the example. You may look at flo-check-homework-decorate-games.xml from the
+tools/flo-check-homework-decorate-games folder or run
+'flo-check-homework-decorate-games --help' for an example of such a file. Once
+you have a proper DATAFILE, run the following command as a user who has
+permission to write to /usr/local/games::
 
-  # flo-check-homework-decorate-games </path/to/DATAFILE
+  # flo-check-homework-decorate-games /path/to/DATAFILE
 
 This will create an appropriate launcher script in /usr/local/games for every
 program listed in DATAFILE. If /usr/local/games is prepended to the system
@@ -66,13 +68,19 @@ freedesktop .desktop files usually don't specify a full path to the executable
 report a bug to the game in question). The format of .desktop files is
 described in the `Desktop Entry specification`_.
 
+flo-check-homework-decorate-games has options to customize the paths such as
+/usr/games and /usr/local/games, as well as options to choose which locale to
+use when a launcher script starts flo-check-homework, and when
+flo-check-homework runs a game. See the output of
+'flo-check-homework-decorate-games --help' for more information.
+
 
 Requirements
 ------------
 
 The following software is required to run flo-check-homework:
 
-  - any version of Python 3;
+  - Python 3.1 or later in the 3 series;
   - Qt 4.8 or later;
   - PyQt 4.10.3 is known to work, version 4.9 should be enough and older
     versions will most probably not work with this version of

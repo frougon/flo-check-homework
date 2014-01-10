@@ -21,9 +21,11 @@ dosbox	DOSBox Emulator	/usr/bin/dosbox
 etracer	Extreme Tux Racer
 fgfs	FlightGear
 fgo	FGo!
-# gcompris	GCompris
+gcompris	GCompris
 lincity-ng	LinCity-NG
 liquidwar	Liquid War
+mame	MAME
+mess	MESS
 neverball	Neverball
 neverputt	Neverputt
 njam	Njam
