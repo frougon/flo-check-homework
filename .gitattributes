@@ -1,0 +1,22 @@
+# Set default behaviour, in case users don't have core.autocrlf set.
+* text=auto
+
+*.py                           text
+*.txt                          text
+INSTALL.txt                    text eol=crlf
+README.*                       text eol=crlf
+*.xml                          text
+*.svg                          text
+*.jpg                          binary
+*.png                          binary
+*.ts                           text
+*.qm                           binary
+AUTHORS                        text eol=crlf
+ChangeLog.init                 text eol=crlf
+flo-check-homework             text
+flo-check-homework.pro         text
+Makefile                       text
+MANIFEST.in                    text
+# Some Python packaging guides recommend CRLF line endings for README.rst
+# because of those poor Windows souls...
+setup.cfg                      text
