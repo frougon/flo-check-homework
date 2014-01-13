@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # setup.py --- Setup script for flo-check-homework
-# Copyright (c) 2013 Florent Rougon
+# Copyright (c) 2013, 2014  Florent Rougon
 #
 # This file is part of flo-check-homework.
 #
@@ -51,11 +51,14 @@ def main():
     #
     # create_resource_file("fch_resources.qrc",
     #                      os.path.join(PYPKG, "fch_resources.py"))
+    with open("README.rst", "r", encoding="utf-8") as f:
+        long_description = f.read()
+
     setup(name=PACKAGE,
           version=VERSION,
           description="A program that allows to run other programs only after "
           "a set of questions have been correctly answered",
-          long_description=open("README.rst", "r", encoding="utf-8").read(),
+          long_description=long_description,
           author="Florent Rougon",
           author_email="f.rougon@free.fr",
           url="http://people.via.ecp.fr/~flo/",

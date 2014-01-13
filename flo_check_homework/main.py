@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # main.py --- Main module of flo-check-homework
-# Copyright (c) 2011, 2012, 2013 Florent Rougon
+# Copyright (c) 2011, 2012, 2013, 2014  Florent Rougon
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1510,7 +1510,7 @@ app.setWindowIcon(icon)
 # QTranslator objects set up and installed in the application.
 version_blurb1 = translate("app", """Written by Florent Rougon.
 
-Copyright (c) 2011-2013  Florent Rougon""")
+Copyright (c) 2011-2014  Florent Rougon""")
 version_blurb2 = translate("app", """\
 This is free software; see the source for copying conditions.  There is NO \
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")

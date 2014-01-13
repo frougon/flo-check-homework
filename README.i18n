@@ -38,6 +38,18 @@ Python source files ---------> .ts files -----------> .qm files
    anymore. However, this may delete translations that might be useful to
    translators in the future if similar strings are (re-)added to the code.
 
+   Note: because of a bug in pylupdate4 as shipped in PyQt 4.10.3, you need
+         either a recent enough PyQt or a patched pylupdate4 in order to
+         generate or update the .ts files for flo-check-homework. See:
+
+           http://www.riverbankcomputing.com/pipermail/pyqt/2013-August/033174.html
+
+         and
+
+           http://www.riverbankcomputing.com/pipermail/pyqt/2013-September/033175.html
+
+         for more information.
+
 2. Translators work on the .ts files with Qt Linguist (the .ts file to work on
    may be passed to linguist-qt4 on the command line). When they are satisfied
    with a .ts file, they save it and send it to the release manager.

@@ -21,7 +21,7 @@ Indeed, flo-check-homework refuses to quit immediately unless option -e was
 given or a sufficient score was obtained; this is done so as to avoid the
 children validating the whole questionnaire with incorrect answers only to get
 corrections that they can blindly copy after rerunning the program. For the
-same reason, some of the question generators purposely don't remember
+same reason, some of the question generators purposedly don't remember
 incorrect answers, in contrast with the initial design.
 
 Currently, the questions are designed to help consolidate simple additions,
@@ -86,7 +86,7 @@ The following software is required to run flo-check-homework:
     versions will most probably not work with this version of
     flo-check-homework.
 
-Version 0.9.11 of flo-check-homework has been tested on Linux with
+Version 0.9.12 of flo-check-homework has been tested on Linux with
 Python 3.3.2, Qt 4.8.2 and PyQt 4.10.3. It should work on any platform with
 the aforementioned dependencies installed, but trivial bugs are likely to pop
 up on non-Unix platforms as no test whatsoever has been done on them. Please
