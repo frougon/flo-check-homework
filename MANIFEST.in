@@ -3,3 +3,4 @@ include flo-check-homework.pro *.ts Makefile
 recursive-include flo_check_homework/images *.txt *.svg
 recursive-include flo_check_homework/translations *.qm
 recursive-include tools *
+global-exclude .gitattributes
