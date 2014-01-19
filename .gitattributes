@@ -3,6 +3,8 @@
 
 *.py                           text
 *.txt                          text
+# Some Python packaging guides recommend CRLF line endings for README.rst
+# because of those poor Windows souls...
 INSTALL.txt                    text eol=crlf
 README.*                       text eol=crlf
 *.xml                          text
@@ -17,6 +19,4 @@ flo-check-homework             text
 flo-check-homework.pro         text
 Makefile                       text
 MANIFEST.in                    text
-# Some Python packaging guides recommend CRLF line endings for README.rst
-# because of those poor Windows souls...
 setup.cfg                      text
