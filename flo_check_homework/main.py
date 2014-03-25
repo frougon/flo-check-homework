@@ -1025,6 +1025,15 @@ class MainWindow(QtGui.QMainWindow):
         self.initSettings()
         register_cleanup_handler(self.writeSettings)
 
+        # Optional launcher for starting the desired program
+        self.launcher = self.qSettings.value("ProgramLauncher", type=str)
+
+        if self.launcher:
+            # This will be our direct child
+            self.executedProgram = self.launcher
+        else:
+            self.executedProgram = params["desired_program"][0]
+
     def loadOrInitIntSetting(self, *args, **kwargs):
         return fch_util.loadOrInitIntSetting(self.qSettings, *args, **kwargs)
 
@@ -1225,6 +1234,10 @@ class MainWindow(QtGui.QMainWindow):
                 size = self.qSettings.value("Size", type='QSize')
                 self.resize(size)
 
+        # Optional launcher for starting the desired program
+        if not self.qSettings.contains("ProgramLauncher"):
+            self.qSettings.setValue("ProgramLauncher", "")
+
     def writeSettings(self):
         self.rememberGeometry = bool(
             self.loadOrInitIntSetting("RememberGeometry", 1))
@@ -1258,13 +1271,13 @@ class MainWindow(QtGui.QMainWindow):
                 self, QImageFromResource(imageRes))
             rewardWindow.show()
 
-        # Activate the program launcher if authorized
+        # Activate the program launcher button if authorized
         if self.mainWidget.successfulWork():
             self.launchDesiredProgramAct.setEnabled(True)
             # self.exitAct.setEnabled(True)
         elif not images:
             # Give an explanation if no image was displayed and the score
-            # was too low to enable the program launcher
+            # was too low to enable the program launcher button
             msgBox = QtGui.QMessageBox()
             msgBox.setText(self.tr("Wrong password."))
             msgBox.setInformativeText(self.tr(
@@ -1347,28 +1360,32 @@ class MainWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def launchDesiredProgram(self):
         self.launchDesiredProgramAct.setEnabled(False)
-        self.desiredProgramProcess.start(params["desired_program"][0],
-                                         params["desired_program"][1:])
+
+        if self.launcher:
+            args = params["desired_program"]
+        else:
+            # The first element is the desired program
+            args = params["desired_program"][1:]
+
+        # Start the desired program, directly or via self.launcher
+        self.desiredProgramProcess.start(self.executedProgram, args)
 
     @QtCore.pyqtSlot()
     def onDesiredProgramStarted(self):
-        program = params["desired_program"][0]
-        logger.debug("Program '%s' started." % program)
+        logger.debug("Program '%s' started." % self.executedProgram)
 
     @QtCore.pyqtSlot(int, 'QProcess::ExitStatus')
     def onDesiredProgramFinished(self, exitCode, exitStatus):
-        program = params["desired_program"][0]
-
         if exitStatus == QtCore.QProcess.NormalExit:
-            logger.debug("Program '%s' returned exit code %d.", program,
-                         exitCode)
+            logger.debug("Program '%s' returned exit code %d.",
+                         self.executedProgram, exitCode)
         else:
             assert exitStatus == QtCore.QProcess.CrashExit, exitStatus
             msgBox = QtGui.QMessageBox()
             msgBox.setText(self.tr(
                     "The program '{0}' terminated abnormally (maybe killed "
                     "by a signal)."
-                    ).format(program))
+                    ).format(self.executedProgram))
             msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
             msgBox.setIcon(QtGui.QMessageBox.Warning)
             msgBox.exec_()
@@ -1377,20 +1394,19 @@ class MainWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot('QProcess::ProcessError')
     def onDesiredProgramError(self, processError):
-        program = params["desired_program"][0]
-
         msg = {
             QtCore.QProcess.FailedToStart:
                 self.tr("The program '{0}' could not start; maybe the "
                         "executable cannot be found or you don't have "
-                        "the required permissions.").format(program),
+                        "the required permissions."
+                        ).format(self.executedProgram),
             QtCore.QProcess.UnknownError:
                 self.tr("Unknown error while executing the program "
                         "'{0}' (thanks to Qt for the precise diagnosis)."
-                        ).format(program) }
+                        ).format(self.executedProgram) }
 
         if processError ==  QtCore.QProcess.Crashed:
-            logger.info("Program %s crashed." % program)
+            logger.info("Program %s crashed." % self.executedProgram)
         else:
             msgBox = QtGui.QMessageBox()
             msgBox.setText(msg[processError])
