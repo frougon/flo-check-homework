@@ -30,6 +30,12 @@
   </wrapper>
 
   <wrapper>
+    <name>assaultcube</name>
+    <pretty_name>AssaultCube</pretty_name>
+    <command></command>
+  </wrapper>
+
+  <wrapper>
     <name>blinken</name>
     <pretty_name>Blinken</pretty_name>
     <command>/usr/bin/blinken</command>
@@ -56,6 +62,12 @@
   <wrapper>
     <name>briquolo</name>
     <pretty_name>Briquolo</pretty_name>
+    <command></command>
+  </wrapper>
+
+  <wrapper>
+    <name>bzflag</name>
+    <pretty_name>BZFlag</pretty_name>
     <command></command>
   </wrapper>
 
@@ -90,6 +102,12 @@
   </wrapper>
 
   <wrapper>
+    <name>fgrun</name>
+    <pretty_name>FGRun</pretty_name>
+    <command></command>
+  </wrapper>
+
+  <wrapper>
     <name>gcompris</name>
     <pretty_name>GCompris</pretty_name>
     <command></command>
@@ -116,6 +134,12 @@
   <wrapper>
     <name>mess</name>
     <pretty_name>MESS</pretty_name>
+    <command></command>
+  </wrapper>
+
+  <wrapper>
+    <name>minetest</name>
+    <pretty_name>Minetest</pretty_name>
     <command></command>
   </wrapper>
 
