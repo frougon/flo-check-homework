@@ -117,6 +117,55 @@ to work properly:
     directory of the Git repository, provided you have GNU Make (run 'make').
 
 
+Advanced tips (or hacks)
+------------------------
+
+Since version 0.10.0, it is possible to tell flo-check-homework to use an
+intermediate launcher to start the desired program (game or whatever you
+want). This is done by setting ProgramLauncher in the configuration file to
+the name or path to the launcher executable. This results in a command where
+the value of ProgramLauncher is prepended to the command line for the desired
+program. Of course, if ProgramLauncher is empty or unset, no intermediate
+launcher is used.
+
+This new feature can be used in a setup where for instance /usr/games does not
+have the executable bit set for the user running flo-check-homework, but does
+have it for a particular group which we'll call gamers for the sake of this
+discussion. If you create a custom launcher program in C that uses the
+setgroups(2) system call to add the gamers group to the list of supplementary
+groups for the calling process before using execve(2) to run the desired
+program, then it becomes possible for the user to run the desired program
+through flo-check-homework even though it would appear to be impossible at
+first (of course, the launcher program is the one providing the required
+privileges here, and is also accessible to the user in such a setup).
+
+The setup described in the previous paragraph requires a little modification
+to wrapper scripts, which by default check the executable bit of the program
+to run. In this case, the check would necessarily fail and should be skipped.
+Invoking flo-check-homework-decorate-games with the --no-exec-check option
+generates scripts that don't perform such a check.
+
+Note:
+
+  To be of any use, a launcher program as described above would need the
+  CAP_SETGID capability on Linux. As a consequence, it would require great
+  care in writing and installing. For a start, the GID of the group passed in
+  the aforementioned setgroups(2) system call *must not* be something that
+  unprivileged users can choose, and that group should have no more powers
+  than being able to access /usr/games in a read-only manner. Additionally,
+  the launcher program should be installed on a partition where unprivileged
+  users have absolutely no write access, otherwise they could make a hard link
+  to the executable that would defeat the purpose of a security update (this
+  is a general issue to consider whenever using setuid or setgid executables
+  or, as described here, programs with special capabilities---in the specific
+  sense this word has for Linux, as documented in the capabilities(7) manual
+  page). For all these reasons, and because of its obvious side effects (such
+  as not being able to execute fortune(6) normally, if installed in
+  /usr/games), this kind of setup should only be adopted if really necessary
+  (not to mention the fact that it can be easily defeated; as announced in the
+  title, it is a hack!).
+
+
 Additional notes
 ----------------
 

@@ -143,21 +143,21 @@ if COMMAND is empty.""".format(
     parser.add_argument('-r', '--real-dir', default="/usr/games",
                         help="""\
       directory where the real programs (as opposed to the wrappers) reside
-      (default: %(default)s)"""),
+      (default: %(default)s)""")
     parser.add_argument('-w', '--wrapper-dir', default="/usr/local/games",
                         help="""\
       directory where the wrapper scripts will be written to
-      (default: %(default)s)"""),
+      (default: %(default)s)""")
     parser.add_argument('--fch-locale', default="fr_FR.UTF-8",
                         help="""\
       value of the LANG environment variable used for running
       flo-check-homework in the wrapper scripts
-      (default: %(default)s)"""),
+      (default: %(default)s)""")
     parser.add_argument('--prog-locale', default="en_US.UTF-8",
                         help="""\
       value of the LANG environment variable used for running
       the target programs ("games") in the wrapper scripts
-      (default: %(default)s)"""),
+      (default: %(default)s)""")
     parser.add_argument('-X', '--no-exec-check', dest='exec_check',
                         action='store_false', help="""\
       don't check the executable bit of the desired program in wrapper
