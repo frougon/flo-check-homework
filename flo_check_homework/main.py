@@ -196,7 +196,47 @@ class HomeWorkCheckApp(QtGui.QApplication):
 
         self.setupTranslations()
         self.mainWindow = None           # To be created
+        self.mainWindowInitialized = False
         self.aboutToQuit.connect(run_cleanup_handlers_for_program_exit)
+
+        self.setOrganizationName("Florent Rougon")
+        self.setOrganizationDomain("florent.rougon.free.fr")
+        self.setApplicationName(progname)
+
+        icon = QtGui.QIcon(QPixmapFromResource("images/logo/logo_64x64.png"))
+        for size in ("32x32", "16x16", "14x14"):
+            icon.addPixmap(QPixmapFromResource(
+                    "images/logo/logo_{0}.png".format(size)))
+        self.setWindowIcon(icon)
+
+    def endInit(self):
+        """Initialization tasks that must be done once the lock file acquired"""
+        # Must be done early in order to be safe with respect to other modules
+        QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
+        # We need the QSettings to read the ProgramLauncher setting.
+        self.qSettings = QtCore.QSettings()
+
+        self.desiredProgramProcess = QtCore.QProcess(self)
+        self.desiredProgramProcess.setProcessChannelMode(
+            QtCore.QProcess.ForwardedChannels)
+        self.desiredProgramProcess.started.connect(
+            self.onDesiredProgramStarted)
+        self.desiredProgramProcess.finished.connect(
+            self.onDesiredProgramFinished)
+        self.desiredProgramProcess.error.connect(
+            self.onDesiredProgramError)
+
+        # Optional launcher to start the desired program
+        if not self.qSettings.contains("ProgramLauncher"):
+            self.qSettings.setValue("ProgramLauncher", "")
+        self.launcher = self.qSettings.value("ProgramLauncher", type=str)
+
+        if self.launcher:
+            # This will be our direct child
+            self.executedProgram = self.launcher
+        else:
+            # Can only be done after command line processing
+            self.executedProgram = params["desired_program"][0]
 
     def setupTranslations(self):
         # Get a list of locale names (such as 'C', 'fr-FR' or 'en-US') for
@@ -226,6 +266,98 @@ class HomeWorkCheckApp(QtGui.QApplication):
             self.l10n_data.append((translator, data))
             if translator.loadFromData(data):
                 self.installTranslator(translator)
+
+    def processCommandLine(self, arguments):
+        global params
+
+        version_blurb1 = translate("app", """Written by Florent Rougon.
+
+Copyright (c) 2011-2014  Florent Rougon""")
+        version_blurb2 = translate("app", """\
+This is free software; see the source for copying conditions.  There is NO \
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
+
+        try:
+            opts, args = getopt.getopt(arguments[1:], "eD:p:tv",
+                                       ["allow-early-exit",
+                                        "quit-delay=",
+                                        "pretty-name",
+                                        "test-mode",
+                                        "verbose",
+                                        "help",
+                                        "version"])
+        except getopt.GetoptError as message:
+            sys.stderr.write(usage + "\n")
+            return ("exit", 1)
+
+        # Let's start with the options that don't require any non-option
+        # argument to be present
+        for option, value in opts:
+            if option == "--help":
+                print(usage)
+                return ("exit", 0)
+            elif option == "--version":
+                print("{name} {version}\n{blurb1}\n{blurb2}".format(
+                        name=progname, version=progversion,
+                        blurb1=version_blurb1, blurb2=tw.fill(version_blurb2)))
+                return ("exit", 0)
+
+        # Now, require a correct invocation.
+        if len(args) == 0:
+            print(usage, file=sys.stderr)
+            return ("exit", 1)
+
+        params["desired_program"] = args
+
+        # Get the home directory, if any, and store it in params (often useful).
+        try:
+            home_dir = os.environ["HOME"]
+        except KeyError:
+            home_dir = None
+        params["home_dir"] = home_dir
+
+        # Default values for options
+        params["allow_early_exit"] = False
+        params["quit_delay"] = "random"
+        params["desired_program_pretty_name"] = params["desired_program"][0]
+        params["test_mode"] = False
+
+        # General option processing
+        for option, value in opts:
+            if option in ("-e", "--allow-early-exit"):
+                params["allow_early_exit"] = True
+            elif option in ("-D", "--quit-delay"):
+                if value == "random":
+                    continue
+
+                try:
+                    params["quit_delay"] = int(value)
+                    if params["quit_delay"] < 0:
+                        raise ValueError()
+                except ValueError:
+                    print("Invalid value for option -D (--quit-delay): '{0}'"
+                          .format(value), file=sys.stderr)
+                    return ("exit", 1)
+            elif option in ("-p", "--pretty-name"):
+                params["desired_program_pretty_name"] = value
+            elif option in ("-t", "--test-mode"):
+                params["test_mode"] = True
+            elif option in ("-v", "--verbose"):
+                # Effective level for all child loggers with NOTSET level
+                logging.getLogger('flo_check_homework').setLevel(logging.DEBUG)
+            else:
+                # The options (such as --help) that cause immediate exit
+                # were already checked, and caused the function to return.
+                # Therefore, if we are here, it can't be due to any of these
+                # options.
+                assert False, \
+                    "Unexpected option received from the getopt module: " \
+                    "{!r}".format(option)
+
+        if params["quit_delay"] == "random":
+            params["quit_delay"] = 60*random.randint(5, 8)
+
+        return ("continue", 0)
 
     # Because of all the things we do with QSettings (especially in
     # exercise_generator.py), it is not conceivable to run several instances of
@@ -397,6 +529,68 @@ remove or rename this file before restarting <i>{1}</i>.""").format(
             res = False
 
         return res
+
+    @QtCore.pyqtSlot()
+    def launchDesiredProgram(self):
+        if self.mainWindowInitialized:
+            self.mainWindow.launchDesiredProgramAct.setEnabled(False)
+
+        if self.launcher:
+            args = params["desired_program"]
+        else:
+            # The first element is the desired program
+            args = params["desired_program"][1:]
+
+        # Start the desired program, directly or via self.launcher
+        self.desiredProgramProcess.start(self.executedProgram, args)
+
+    @QtCore.pyqtSlot()
+    def onDesiredProgramStarted(self):
+        logger.debug("Program '%s' started." % self.executedProgram)
+
+    @QtCore.pyqtSlot(int, 'QProcess::ExitStatus')
+    def onDesiredProgramFinished(self, exitCode, exitStatus):
+        if exitStatus == QtCore.QProcess.NormalExit:
+            logger.debug("Program '%s' returned exit code %d.",
+                         self.executedProgram, exitCode)
+        else:
+            assert exitStatus == QtCore.QProcess.CrashExit, exitStatus
+            msgBox = QtGui.QMessageBox()
+            msgBox.setText(self.tr(
+                    "The program '{0}' terminated abnormally (maybe killed "
+                    "by a signal)."
+                    ).format(self.executedProgram))
+            msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
+            msgBox.setIcon(QtGui.QMessageBox.Warning)
+            msgBox.exec_()
+
+        if self.mainWindowInitialized:
+            self.mainWindow.launchDesiredProgramAct.setEnabled(True)
+
+    @QtCore.pyqtSlot('QProcess::ProcessError')
+    def onDesiredProgramError(self, processError):
+        msg = {
+            QtCore.QProcess.FailedToStart:
+                self.tr("The program '{0}' could not start; maybe the "
+                        "executable cannot be found or you don't have "
+                        "the required permissions."
+                        ).format(self.executedProgram),
+            QtCore.QProcess.UnknownError:
+                self.tr("Unknown error while executing the program "
+                        "'{0}' (thanks to Qt for the precise diagnosis)."
+                        ).format(self.executedProgram) }
+
+        if processError ==  QtCore.QProcess.Crashed:
+            logger.info("Program %s crashed." % self.executedProgram)
+        else:
+            msgBox = QtGui.QMessageBox()
+            msgBox.setText(msg[processError])
+            msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
+            msgBox.setIcon(QtGui.QMessageBox.Warning)
+            msgBox.exec_()
+
+        if self.mainWindowInitialized:
+            self.mainWindow.launchDesiredProgramAct.setEnabled(True)
 
 
 class InputField(QtGui.QLineEdit):
@@ -998,16 +1192,6 @@ class MainWindow(QtGui.QMainWindow):
 
         self.magicFormulaAttempts = 0
 
-        self.desiredProgramProcess = QtCore.QProcess(self)
-        self.desiredProgramProcess.setProcessChannelMode(
-            QtCore.QProcess.ForwardedChannels)
-        self.desiredProgramProcess.started.connect(
-            self.onDesiredProgramStarted)
-        self.desiredProgramProcess.finished.connect(
-            self.onDesiredProgramFinished)
-        self.desiredProgramProcess.error.connect(
-            self.onDesiredProgramError)
-
         self.mainWidget = MainWidget(self.prepareQuestionnaires())
         self.setCentralWidget(self.mainWidget)
 
@@ -1024,15 +1208,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.initSettings()
         register_cleanup_handler(self.writeSettings)
-
-        # Optional launcher for starting the desired program
-        self.launcher = self.qSettings.value("ProgramLauncher", type=str)
-
-        if self.launcher:
-            # This will be our direct child
-            self.executedProgram = self.launcher
-        else:
-            self.executedProgram = params["desired_program"][0]
+        app.mainWindowInitialized = True
 
     def loadOrInitIntSetting(self, *args, **kwargs):
         return fch_util.loadOrInitIntSetting(self.qSettings, *args, **kwargs)
@@ -1162,7 +1338,7 @@ class MainWindow(QtGui.QMainWindow):
                 params["desired_program_pretty_name"]))
         self.launchDesiredProgramAct.setEnabled(False)
         self.launchDesiredProgramAct.triggered.connect(
-            self.launchDesiredProgram)
+            app.launchDesiredProgram)
 
         self.magicFormulaAct = QtGui.QAction(
             QtGui.QIcon(QPixmapFromResource(
@@ -1234,10 +1410,6 @@ class MainWindow(QtGui.QMainWindow):
                 size = self.qSettings.value("Size", type='QSize')
                 self.resize(size)
 
-        # Optional launcher for starting the desired program
-        if not self.qSettings.contains("ProgramLauncher"):
-            self.qSettings.setValue("ProgramLauncher", "")
-
     def writeSettings(self):
         self.rememberGeometry = bool(
             self.loadOrInitIntSetting("RememberGeometry", 1))
@@ -1300,7 +1472,7 @@ class MainWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def test(self):
         logger.info("Running Test action...")
-        # self.launchDesiredProgram()
+        # app.launchDesiredProgram()
 
         # imageRes = \
         #     'images/rewards/40-very_happy/Gerald_G_Cartoon_Cat_Walking.png'
@@ -1357,191 +1529,26 @@ class MainWindow(QtGui.QMainWindow):
                 self.launchDesiredProgramAct.setEnabled(True)
                 self.allowedToQuit = True
 
-    @QtCore.pyqtSlot()
-    def launchDesiredProgram(self):
-        self.launchDesiredProgramAct.setEnabled(False)
 
-        if self.launcher:
-            args = params["desired_program"]
-        else:
-            # The first element is the desired program
-            args = params["desired_program"][1:]
-
-        # Start the desired program, directly or via self.launcher
-        self.desiredProgramProcess.start(self.executedProgram, args)
-
-    @QtCore.pyqtSlot()
-    def onDesiredProgramStarted(self):
-        logger.debug("Program '%s' started." % self.executedProgram)
-
-    @QtCore.pyqtSlot(int, 'QProcess::ExitStatus')
-    def onDesiredProgramFinished(self, exitCode, exitStatus):
-        if exitStatus == QtCore.QProcess.NormalExit:
-            logger.debug("Program '%s' returned exit code %d.",
-                         self.executedProgram, exitCode)
-        else:
-            assert exitStatus == QtCore.QProcess.CrashExit, exitStatus
-            msgBox = QtGui.QMessageBox()
-            msgBox.setText(self.tr(
-                    "The program '{0}' terminated abnormally (maybe killed "
-                    "by a signal)."
-                    ).format(self.executedProgram))
-            msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
-            msgBox.setIcon(QtGui.QMessageBox.Warning)
-            msgBox.exec_()
-
-        self.launchDesiredProgramAct.setEnabled(True)
-
-    @QtCore.pyqtSlot('QProcess::ProcessError')
-    def onDesiredProgramError(self, processError):
-        msg = {
-            QtCore.QProcess.FailedToStart:
-                self.tr("The program '{0}' could not start; maybe the "
-                        "executable cannot be found or you don't have "
-                        "the required permissions."
-                        ).format(self.executedProgram),
-            QtCore.QProcess.UnknownError:
-                self.tr("Unknown error while executing the program "
-                        "'{0}' (thanks to Qt for the precise diagnosis)."
-                        ).format(self.executedProgram) }
-
-        if processError ==  QtCore.QProcess.Crashed:
-            logger.info("Program %s crashed." % self.executedProgram)
-        else:
-            msgBox = QtGui.QMessageBox()
-            msgBox.setText(msg[processError])
-            msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
-            msgBox.setIcon(QtGui.QMessageBox.Warning)
-            msgBox.exec_()
-
-        self.launchDesiredProgramAct.setEnabled(True)
-
-
-def process_command_line_and_config_file(arguments):
-    global params
-
-    try:
-        opts, args = getopt.getopt(arguments[1:], "eD:p:tv",
-                                   ["allow-early-exit",
-                                    "quit-delay=",
-                                    "pretty-name",
-                                    "test-mode",
-                                    "verbose",
-                                    "help",
-                                    "version"])
-    except getopt.GetoptError as message:
-        sys.stderr.write(usage + "\n")
-        return ("exit", 1)
-
-    # Let's start with the options that don't require any non-option argument
-    # to be present
-    for option, value in opts:
-        if option == "--help":
-            print(usage)
-            return ("exit", 0)
-        elif option == "--version":
-            print("{name} {version}\n{blurb1}\n{blurb2}".format(
-                    name=progname, version=progversion, blurb1=version_blurb1,
-                    blurb2=tw.fill(version_blurb2)))
-            return ("exit", 0)
-
-    # Now, require a correct invocation.
-    if len(args) == 0:
-        sys.stderr.write(usage + "\n")
-        return ("exit", 1)
-
-    params["desired_program"] = args
-
-    # Get the home directory, if any, and store it in params (often useful).
-    try:
-        home_dir = os.environ["HOME"]
-    except KeyError:
-        home_dir = None
-    params["home_dir"] = home_dir
-
-    # Default values for options
-    params["allow_early_exit"] = False
-    params["quit_delay"] = "random"
-    params["desired_program_pretty_name"] = params["desired_program"][0]
-    params["test_mode"] = False
-
-    # General option processing
-    for option, value in opts:
-        if option in ("-e", "--allow-early-exit"):
-            params["allow_early_exit"] = True
-        elif option in ("-D", "--quit-delay"):
-            if value == "random":
-                continue
-
-            try:
-                params["quit_delay"] = int(value)
-                if params["quit_delay"] < 0:
-                    raise ValueError()
-            except ValueError:
-                print("Invalid value for option -D (--quit-delay): '{0}'"
-                      .format(value), file=sys.stderr)
-                return ("exit", 1)
-        elif option in ("-p", "--pretty-name"):
-            params["desired_program_pretty_name"] = value
-        elif option in ("-t", "--test-mode"):
-            params["test_mode"] = True
-        elif option in ("-v", "--verbose"):
-            # Effective level for all child loggers with NOTSET level
-            logging.getLogger('flo_check_homework').setLevel(logging.DEBUG)
-        else:
-            # The options (such as --help) that cause immediate exit
-            # were already checked, and caused the function to return.
-            # Therefore, if we are here, it can't be due to any of these
-            # options.
-            assert False, \
-                "Unexpected option received from the getopt module: '%s'" \
-                % option
-
-    if params["quit_delay"] == "random":
-        params["quit_delay"] = 60*random.randint(5, 8)
-
-    return ("continue", 0)
-
-
-# Early initialization
+# Early program initialization
 random.seed()
 locale.setlocale(locale.LC_ALL, '')
 
 # Create the QApplication instance and initialize modules
 app = HomeWorkCheckApp(sys.argv)
 
-app.setOrganizationName("Florent Rougon")
-app.setOrganizationDomain("florent.rougon.free.fr")
-app.setApplicationName(progname)
-# Must be done early in order to be safe with respect to other modules
-QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
-
-icon = QtGui.QIcon(QPixmapFromResource("images/logo/logo_64x64.png"))
-for size in ("32x32", "16x16", "14x14"):
-    icon.addPixmap(QPixmapFromResource(
-            "images/logo/logo_{0}.png".format(size)))
-app.setWindowIcon(icon)
+# Note: this requires a working translation system.
+action, retcode = app.processCommandLine( tuple(map(str, app.arguments())) )
+if action == "exit":
+    sys.exit(retcode)
 
 # Working l10n requires the QApplication instance well initialized to have the
 # QTranslator objects set up and installed in the application.
-version_blurb1 = translate("app", """Written by Florent Rougon.
-
-Copyright (c) 2011-2014  Florent Rougon""")
-version_blurb2 = translate("app", """\
-This is free software; see the source for copying conditions.  There is NO \
-warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
-
 from .exercise_generator import Seen, EuclidianDivisionGenerator, \
     DirectMultTablesGenerator, \
     DirectAddTablesGenerator, RandomAdditionGenerator, \
     BasicSubstractionGenerator, RandomSubstractionGenerator, \
     VerbTenseComboGenerator, ConjugationsGenerator
-
-
-action, retcode = process_command_line_and_config_file(
-    tuple(map(str, app.arguments())))
-if action == "exit":
-    sys.exit(retcode)
 
 # Use a lock file to determine if another instance is already running
 locked, lockFile = app.checkAlreadyRunningInstance()
@@ -1551,6 +1558,7 @@ if locked:
 # If we are here, it means we have just created the lock file containing
 # our PID, and we are responsible for removing it.
 try:
+    app.endInit()               # Things that need the lock file control
     if not app.checkConfigFileVersion():
         sys.exit(1)
 
