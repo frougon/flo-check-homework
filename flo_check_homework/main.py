@@ -1279,13 +1279,14 @@ class MainWindow(QtGui.QMainWindow):
 
         self.setWindowTitle(self.tr("Password check"))
 
+        self.initSettings()
+        register_cleanup_handler(self.writeSettings)
+
         self.createActions()
         self.createMenus()
         self.createToolBars()
         self.createStatusBar()
 
-        self.initSettings()
-        register_cleanup_handler(self.writeSettings)
         app.mainWindowInitialized = True
 
     def loadOrInitIntSetting(self, *args, **kwargs):
@@ -1483,14 +1484,23 @@ class MainWindow(QtGui.QMainWindow):
         self.helpMenu.addAction(self.aboutAct)
 
     def createToolBars(self):
+        toolbars = []
+        # Doesn't seem to work with Qt 4.8:
+        #   self.setStyleSheet("QToolBar { icon-size: 80pt; }")
         self.fileToolBar = self.addToolBar(self.tr("File"))
         if params["test_mode"]:
             self.fileToolBar.addAction(self.testAct)
         self.fileToolBar.addAction(self.launchDesiredProgramAct)
+        toolbars.append(self.fileToolBar)
 
         self.magicToolBar = self.addToolBar(self.tr("Magic"))
         self.magicToolBar.addAction(self.magicFormulaAct)
         self.magicToolBar.addAction(self.superMagicFormulaAct)
+        toolbars.append(self.magicToolBar)
+
+        iconSize = self.qSettings.value("ToolbarIconSize", type=int)
+        for tb in toolbars:
+            tb.setIconSize(QtCore.QSize(iconSize, iconSize))
 
     def createStatusBar(self):
         self.statusBar().showMessage(self.tr("Ready"))
@@ -1517,6 +1527,8 @@ class MainWindow(QtGui.QMainWindow):
 
         if not self.qSettings.contains("ProgramLauncher"):
             self.qSettings.setValue("ProgramLauncher", "")
+
+        self.loadOrInitIntSetting("ToolbarIconSize", 64)
 
     def writeSettings(self):
         self.rememberGeometry = bool(
