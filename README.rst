@@ -13,7 +13,7 @@ a special button is enabled. When pressed, this button launches the program
 (with optional arguments) that was specified on flo-check-homework's command
 line.
 
-A "magic formula" button allows one to bypass the test in case the pupil has
+A "magic word" button allows one to bypass the test in case the pupil has
 already done his homework in another way. It also makes it possible to exit
 the program immediately.
 
@@ -73,6 +73,70 @@ flo-check-homework-decorate-games has options to customize the paths such as
 use when a launcher script starts flo-check-homework, and when
 flo-check-homework runs a game. See the output of
 'flo-check-homework-decorate-games --help' for more information.
+
+
+The super magic word
+~~~~~~~~~~~~~~~~~~~~
+
+Since version 0.10.0, a new kind of magic word, creatively called the "super
+magic word", allows one to run the decorated games more easily and
+transparently. When one chooses this function from the Magic menu (added in
+version 0.10.0) or from the toolbar, one is asked to enter the super magic
+word, similarly to the simple "magic word". If the given answer is correct, a
+"super magic token" is granted that allows one to run all decorated programs
+(likely to be games) in a transparent manner. This special permission is valid
+for some time that depends on the super magic word that was given (see the
+source!). Once the token has been granted, it is possible to launch the
+predefined game from flo-check-homework's GUI, as for a simple "magic word".
+However, in order to run different games under the super magic token super
+powers, one should rather quit flo-check-homework first, otherwise the locking
+mechanism used to protect the QSettings against eventual corruption caused by
+several concurrent uses would prevent other instances of flo-check-homework
+from running normally, and therefore make it impossible to run other decorated
+games until the instance that is holding the lock is ended.
+
+In short, the suggested use of this feature is the following:
+
+#. Ensure the child has done his work correctly, be it with flo-check-homework,
+   yourself, or any way that seems reasonable to you.
+#. Enter the super magic word in flo-check-homework. This grants you a virtual
+   "super magic token" stored on the filesystem that persists even after
+   flo-check-homework has been ended (the storage location being under
+   '~/.config/Florent Rougon' on Unix-like systems).
+#. Quit flo-check-homework (or accept to be limited to the game and parameters
+   given on flo-check-homework's command line as specified in the previous
+   step).
+#. Let the child play with any of the decorated games without
+   flo-check-homework interfering during the validity period of the super
+   magic token.
+#. Either let the super magic token expire by itself, or launch
+   flo-check-homework and use the appropriate item from the Magic menu to
+   remove it.
+
+Note: there is still some locking performed when flo-check-homework runs the
+decorated game "transparently" after finding out that the user has a valid
+super magic token. However, it is very short, the lock being released before
+the decorated game is started. Therefore, several decorated programs/games may
+be run concurrently this way, even though the corresponding flo-check-homework
+processes may block each other for a short time because of the locking
+performed in order to protect the QSettings.
+
+In this mode, flo-check-homework uses a call from the exec*(2) family
+(execvp(2) in version 0.10.0) without forking beforehand. Consequently, it
+doesn't consume any resource whatsoever once the decorated program is started,
+and the exit code returned is exactly the same as if the decorated program had
+been run without flo-check-homework intervening. This is why this mode is said
+to allow transparent execution of the decorated programs.
+
+When flo-check-homework is started, it can operate in two distinct modes:
+either the graphical interface is displayed, or the program specified on the
+command line is automatically run. The former is called *interactive mode* and
+the latter *transparent mode*. Interactive mode is chosen if, and only if:
+
+  - the ``--interactive`` option has been given or;
+  - the ``ForceInteractive`` setting in the ``General`` section of the
+    configuration file is equal to ``1`` or;
+  - the user has no valid super magic token.
 
 
 Requirements

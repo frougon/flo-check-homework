@@ -19,7 +19,7 @@
 
 
 import sys, os, locale, getopt, subprocess, logging, operator, random, time, \
-    math, numbers, errno, functools, pkgutil, posixpath
+    datetime, math, numbers, hashlib, errno, functools, pkgutil, posixpath
 from PyQt4 import QtCore, QtGui
 translate = QtCore.QCoreApplication.translate
 
@@ -40,6 +40,8 @@ Check specific skills before launching a program.
 Options:
   -e, --allow-early-exit       allow immediate exit even if the score is not
                                satisfactory
+  -i, --interactive            start the graphical user interface in all
+                               cases, even when a super magic token is present
   -D, --quit-delay=DELAY       when option -e is not in effect and the score
                                is lower than the success threshold, the first
                                attempt to quit starts a timer for DELAY
@@ -209,11 +211,16 @@ class HomeWorkCheckApp(QtGui.QApplication):
                     "images/logo/logo_{0}.png".format(size)))
         self.setWindowIcon(icon)
 
+        self.validSuperMagicToken = False
+
     def endInit(self):
         """Initialization tasks that must be done once the lock file acquired"""
         # Must be done early in order to be safe with respect to other modules
         QtCore.QSettings.setDefaultFormat(QtCore.QSettings.IniFormat)
-        # We need the QSettings to read the ProgramLauncher setting.
+        # We need the QSettings to read the ProgramLauncher setting. To avoid a
+        # QSettings.sync() before the final os.execvp() every time the program
+        # is run with a valid super magic token, we'll restrict usage of the
+        # QSettings to read-only in this class.
         self.qSettings = QtCore.QSettings()
 
         self.desiredProgramProcess = QtCore.QProcess(self)
@@ -226,10 +233,12 @@ class HomeWorkCheckApp(QtGui.QApplication):
         self.desiredProgramProcess.error.connect(
             self.onDesiredProgramError)
 
-        # Optional launcher to start the desired program
-        if not self.qSettings.contains("ProgramLauncher"):
-            self.qSettings.setValue("ProgramLauncher", "")
-        self.launcher = self.qSettings.value("ProgramLauncher", type=str)
+        # Optional launcher to start the desired program (read-only access,
+        # cf. comment above)
+        if self.qSettings.contains("ProgramLauncher"):
+            self.launcher = self.qSettings.value("ProgramLauncher", type=str)
+        else:
+            self.launcher = ""
 
         if self.launcher:
             # This will be our direct child
@@ -237,6 +246,9 @@ class HomeWorkCheckApp(QtGui.QApplication):
         else:
             # Can only be done after command line processing
             self.executedProgram = params["desired_program"][0]
+
+        if not self.qSettings.contains("ForceInteractive"):
+            self.qSettings.setValue("ForceInteractive", 0)
 
     def setupTranslations(self):
         # Get a list of locale names (such as 'C', 'fr-FR' or 'en-US') for
@@ -278,8 +290,9 @@ This is free software; see the source for copying conditions.  There is NO \
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
 
         try:
-            opts, args = getopt.getopt(arguments[1:], "eD:p:tv",
+            opts, args = getopt.getopt(arguments[1:], "eiD:p:tv",
                                        ["allow-early-exit",
+                                        "interactive",
                                         "quit-delay=",
                                         "pretty-name",
                                         "test-mode",
@@ -318,6 +331,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
 
         # Default values for options
         params["allow_early_exit"] = False
+        params["interactive"] = False
         params["quit_delay"] = "random"
         params["desired_program_pretty_name"] = params["desired_program"][0]
         params["test_mode"] = False
@@ -326,6 +340,8 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
         for option, value in opts:
             if option in ("-e", "--allow-early-exit"):
                 params["allow_early_exit"] = True
+            elif option in ("-i", "--interactive"):
+                params["interactive"] = True
             elif option in ("-D", "--quit-delay"):
                 if value == "random":
                     continue
@@ -367,22 +383,24 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
     # translations with app.tr() were not able to properly determine the
     # context at runtime, with the result that messages from this function were
     # left untranslated.
-    def checkAlreadyRunningInstance(self):
-        # Find a place to store the lock file in
+
+    @classmethod
+    def getCacheDir(self, msgBoxIcon, informativeText=""):
+        """Get the cache directory and create it if necessary."""
         cacheDir = str(QtGui.QDesktopServices.storageLocation(
                 QtGui.QDesktopServices.CacheLocation))
 
         if not cacheDir:
-            msgBox = QtGui.QMessageBox(
-                QtGui.QMessageBox.Critical, self.tr(progname),
+            msgBox = QtGui.QMessageBox(msgBoxIcon, self.tr(progname),
                 self.tr(
                 "Unable to obtain a location of type <i>CacheLocation</i> "
                 "with QtGui.QDesktopServices.storageLocation()."),
                 QtGui.QMessageBox.Ok)
+            if informativeText:
+                msgBox.setInformativeText(informativeText)
             msgBox.setTextFormat(QtCore.Qt.RichText)
             msgBox.exec_()
-            sys.exit("Unable to obtain a CacheLocation with "
-                     "QtGui.QDesktopServices.storageLocation(). Aborting.")
+            return (None, None)
 
         cacheDirDisplayName = str(QtGui.QDesktopServices.displayName(
                 QtGui.QDesktopServices.CacheLocation))
@@ -391,52 +409,39 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
         if not os.path.isdir(cacheDir):
             os.makedirs(cacheDir)
 
+        return (cacheDir, cacheDirDisplayName)
+
+    def checkAlreadyRunningInstance(self):
+        # Find a place to store the lock file in
+        cacheDir, cacheDirDisplayName = self.getCacheDir(
+            QtGui.QMessageBox.Critical)
+        if not cacheDir:
+            sys.exit("Unable to obtain a CacheLocation with "
+             "QtGui.QDesktopServices.storageLocation(). Aborting.")
+
         lockFile = os.path.join(cacheDir, "{0}.pid".format(progname))
         lockFileDisplayName = os.path.join(cacheDirDisplayName,
                                            "{0}.pid".format(progname))
-        try:
-            # Genuine file locking APIs are a real mess:
-            #   1) The fcntl module isn't available on all platforms, in
-            #      particular it is not available on Windows.
-            #   2) fcntl.flock has a number of issues, one of which being that
-            #      one cannot use it to obtain the PID of the process holding
-            #      an exclusive lock on the file we are trying to lock (if
-            #      any).
-            #   3) fcntl.fcntl could be nice (the C interface is manageable)
-            #      but the Python interface requires one to pass a byte string
-            #      that is a valid struct flock, and this seems to be
-            #      impossible to do in any portable way, even with Ctypes (I
-            #      think), since for instance the type of some fields (e.g.,
-            #      off_t vs. off64_t) is determined at compile time at least on
-            #      Linux, via a #ifdef test. Moreover, the order of the fields
-            #      is unspecified and only known to the C compiler (and there
-            #      may be holes, etc.).
-            #   4) fcntl.lockf, in spite of its silly name (since its interface
-            #      uses the constants of flock and not of the POSIX lockf
-            #      function and it actually is nothing else than an interface
-            #      to fcntl(2) locking), could be useful but it doesn't allow
-            #      access to the PID of the locking process in case one can't
-            #      set a lock on a portion of a file, although the underlying
-            #      fcntl(2) system call does provide this information. What a
-            #      pity...
-            #   5) The lockfile.py module by Skip Montanaro could be
-            #      interesting but isn't part of the Python standard library
-            #      and seems to have outstanding issues for quite some time
-            #      already (as of Dec 2012).
-            #
-            # For all these reasons, we'll use a simple lock file and write the
-            # PID to this lock file, followed by \n to let readers know when
-            # they have read the whole PID and not only part of its decimal
-            # representation.
-            lockFileFD = os.open(lockFile, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                                 0o666)
-        except os.error as e:
-            if e.errno != errno.EEXIST:
-                raise
-            otherProcessHasLock = True
-        else:
-            # Our process is now holding the lock.
-            otherProcessHasLock = False
+        otherProcessHasLock = True
+
+        for i in range(20):     # For the case where self.validSuperMagicToken
+            try:                # is True
+                # See the notes in README.lockfile
+                lockFileFD = os.open(lockFile, os.O_WRONLY | os.O_CREAT |
+                                     os.O_EXCL, 0o666)
+            except os.error as e:
+                if e.errno != errno.EEXIST:
+                    raise
+                # When self.validSuperMagicToken is True, flo-check-homework is
+                # normally non-interactive, therefore the lock is likely to be
+                # released shortly and it is worth retrying after a short time.
+                elif self.validSuperMagicToken:
+                    time.sleep(0.2)
+                    continue
+            else:
+                # Our process is now holding the lock.
+                otherProcessHasLock = False
+            break
 
         if otherProcessHasLock:
             time.sleep(1)
@@ -531,7 +536,7 @@ remove or rename this file before restarting <i>{1}</i>.""").format(
         return res
 
     @QtCore.pyqtSlot()
-    def launchDesiredProgram(self):
+    def launchDesiredProgram(self, simpleExec=False):
         if self.mainWindowInitialized:
             self.mainWindow.launchDesiredProgramAct.setEnabled(False)
 
@@ -542,7 +547,27 @@ remove or rename this file before restarting <i>{1}</i>.""").format(
             args = params["desired_program"][1:]
 
         # Start the desired program, directly or via self.launcher
-        self.desiredProgramProcess.start(self.executedProgram, args)
+        if simpleExec:
+            try:
+                os.execvp(self.executedProgram,
+                          [self.executedProgram] + list(args))
+            except (os.error, IOError) as e:
+                excMsg = e.strerror
+                if hasattr(e, "filename") and e.filename is not None:
+                    excMsg += ": " + e.filename
+
+                msg = self.tr("""\
+The following error was encountered when trying to execute the desired \
+program:
+
+{excMsg}""").format(excMsg=excMsg)
+                msgBox = QtGui.QMessageBox(
+                    QtGui.QMessageBox.Critical, self.tr(progname),
+                    msg, QtGui.QMessageBox.Ok)
+                msgBox.setTextFormat(QtCore.Qt.PlainText)
+                msgBox.exec_()
+        else:
+            self.desiredProgramProcess.start(self.executedProgram, args)
 
     @QtCore.pyqtSlot()
     def onDesiredProgramStarted(self):
@@ -591,6 +616,57 @@ remove or rename this file before restarting <i>{1}</i>.""").format(
 
         if self.mainWindowInitialized:
             self.mainWindow.launchDesiredProgramAct.setEnabled(True)
+
+    def checkSuperMagicToken(self):
+        cacheDir, cacheDirDisplayName = self.getCacheDir(
+            QtGui.QMessageBox.Warning, informativeText=self.tr(
+                "It is therefore impossible to find an eventual super magic "
+                "token."))
+        if not cacheDir:
+            return False
+
+        tokenFilePath = os.path.join(cacheDir, "super-magic-token")
+        if not os.path.exists(tokenFilePath):
+            return False
+
+        with open(tokenFilePath, "r", encoding="utf-8") as tokenFile:
+            contents = tokenFile.read()
+
+        try:
+            nIntervals, resolution, hashStr = contents.strip().split(' ')
+            nIntervals = int(nIntervals)
+            resolution = int(resolution)
+        except ValueError as e:
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Warning, self.tr(progname),
+                self.tr("Invalid syntax for the super magic token file:"),
+                QtGui.QMessageBox.Ok)
+            msgBox.setInformativeText(str(e))
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.exec_()
+
+        # Current date and time expressed in UTC
+        now = datetime.datetime.now(datetime.timezone.utc)
+        # Truncate the minutes part to the closest multiple of 'resolution'
+        t = now.replace(minute=now.minute - (now.minute % resolution),
+                        second=0, microsecond=0)
+
+        for i in range(nIntervals):
+            t += datetime.timedelta(minutes=resolution)
+            tStr = t.strftime("%Y-%m-%d %H:%M:%S %z")
+            tHash = hashlib.sha1(tStr.encode("ascii")).hexdigest()
+            # logger.debug("Checking super magic token against %s...", tStr)
+
+            if tHash == hashStr:
+                # logger.debug("Super magic token matches that time.")
+                self.validSuperMagicToken = True
+                break
+
+        if not self.validSuperMagicToken:
+            # Expired token, remove it
+            os.unlink(tokenFilePath)
+
+        return self.validSuperMagicToken
 
 
 class InputField(QtGui.QLineEdit):
@@ -1185,12 +1261,14 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.allowedToQuit = params["allow_early_exit"]
+        self.allowedToQuit = params["allow_early_exit"] \
+            or app.validSuperMagicToken
         self.quitTimer = QtCore.QTimer(self)
         self.quitTimer.setSingleShot(True)
         self.quitTimer.timeout.connect(self.quitTimerTimeout)
 
         self.magicFormulaAttempts = 0
+        self.superMagicFormulaAttempts = 0
 
         self.mainWidget = MainWidget(self.prepareQuestionnaires())
         self.setCentralWidget(self.mainWidget)
@@ -1336,7 +1414,7 @@ class MainWindow(QtGui.QMainWindow):
         self.launchDesiredProgramAct.setStatusTip(
             self.tr("Launch the program {0}").format(
                 params["desired_program_pretty_name"]))
-        self.launchDesiredProgramAct.setEnabled(False)
+        self.launchDesiredProgramAct.setEnabled(app.validSuperMagicToken)
         self.launchDesiredProgramAct.triggered.connect(
             app.launchDesiredProgram)
 
@@ -1349,6 +1427,26 @@ class MainWindow(QtGui.QMainWindow):
             self.tr("Cast a spell"))
         self.magicFormulaAct.triggered.connect(
             self.magicFormula)
+        self.magicFormulaAct.setEnabled(not app.validSuperMagicToken)
+
+        self.superMagicFormulaAct = QtGui.QAction(
+            QtGui.QIcon(QPixmapFromResource(
+                    "images/magic-wand-by-jhnri4+flo_58480760.png")),
+            self.tr("&Super magic word"), self)
+        self.superMagicFormulaAct.setShortcut(self.tr("Ctrl+S"))
+        self.superMagicFormulaAct.setStatusTip(
+            self.tr("Cast a super spell (with prolonged effects)"))
+        self.superMagicFormulaAct.triggered.connect(
+            self.superMagicFormula)
+        self.superMagicFormulaAct.setEnabled(not app.validSuperMagicToken)
+
+        self.removeSuperMagicTokenAct = QtGui.QAction(
+            self.tr("&Remove the super magic token"), self)
+        self.removeSuperMagicTokenAct.setStatusTip(
+            self.tr("Renounce the advantages given by the super magic token"))
+        self.removeSuperMagicTokenAct.triggered.connect(
+            self.removeSuperMagicToken)
+        self.removeSuperMagicTokenAct.setEnabled(app.validSuperMagicToken)
 
         self.exitAct = QtGui.QAction(
             app.style().standardIcon(QtGui.QStyle.SP_FileDialogEnd),
@@ -1369,11 +1467,15 @@ class MainWindow(QtGui.QMainWindow):
     def createMenus(self):
         self.fileMenu = self.menuBar().addMenu(self.tr("&File"))
         self.fileMenu.addAction(self.launchDesiredProgramAct)
-        self.fileMenu.addAction(self.magicFormulaAct)
         if params["test_mode"]:
             self.fileMenu.addAction(self.testAct)
         self.fileMenu.addSeparator();
         self.fileMenu.addAction(self.exitAct)
+
+        self.magicMenu = self.menuBar().addMenu(self.tr("&Magic"))
+        self.magicMenu.addAction(self.magicFormulaAct)
+        self.magicMenu.addAction(self.superMagicFormulaAct)
+        self.magicMenu.addAction(self.removeSuperMagicTokenAct)
 
         self.menuBar().addSeparator()
 
@@ -1385,7 +1487,10 @@ class MainWindow(QtGui.QMainWindow):
         if params["test_mode"]:
             self.fileToolBar.addAction(self.testAct)
         self.fileToolBar.addAction(self.launchDesiredProgramAct)
-        self.fileToolBar.addAction(self.magicFormulaAct)
+
+        self.magicToolBar = self.addToolBar(self.tr("Magic"))
+        self.magicToolBar.addAction(self.magicFormulaAct)
+        self.magicToolBar.addAction(self.superMagicFormulaAct)
 
     def createStatusBar(self):
         self.statusBar().showMessage(self.tr("Ready"))
@@ -1409,6 +1514,9 @@ class MainWindow(QtGui.QMainWindow):
             if self.qSettings.contains("Size"):
                 size = self.qSettings.value("Size", type='QSize')
                 self.resize(size)
+
+        if not self.qSettings.contains("ProgramLauncher"):
+            self.qSettings.setValue("ProgramLauncher", "")
 
     def writeSettings(self):
         self.rememberGeometry = bool(
@@ -1486,48 +1594,238 @@ class MainWindow(QtGui.QMainWindow):
         #         print w.sizePolicy().horizontalPolicy(),
         #     print w.maximumSize()
 
-    @QtCore.pyqtSlot()
-    def magicFormula(self):
-        maxAttempts = 3
-
-        if self.magicFormulaAttempts >= maxAttempts:
-            msgBox = QtGui.QMessageBox()
-            msgBox.setText(self.tr(
-                    "Too many failed attempts for the magic word."))
-            msgBox.setInformativeText(self.tr(
-                    "After {0} failed attempts, the magic wand stops working.")
-                                      .format(maxAttempts))
-            msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
-            msgBox.setIcon(QtGui.QMessageBox.Information)
-            msgBox.exec_()
-            return
-
-        self.magicFormulaAttempts += 1
+    def _GenericMagicFormula(self, formulaType, counterAttr, maxAttempts,
+                            title, prompt, failedText, informativeFailedText):
+        if getattr(self, counterAttr) >= maxAttempts:
+            return ("too many attempts", None)
 
         R1 = random.randint(4, 99)
         R2 = random.randint(4, 99)
 
         text, ok = QtGui.QInputDialog.getText(
-            self, self.tr("Magic word"),
-            self.tr("I say {0} and {1}. Please enter the magic word.").format(
-                R1, R2),
-            QtGui.QLineEdit.Password)
+            self, title, prompt.format(R1, R2), QtGui.QLineEdit.Password)
 
         h = time.localtime().tm_hour
 
         if ok:
+            # Increment the counter that keeps track of the number of attempts
+            setattr(self, counterAttr,  getattr(self, counterAttr) + 1)
+
             try:
                 i = int(text)
             except ValueError:
-                return
+                if formulaType == "super":
+                    try:
+                        f = float(text)
+                    except ValueError:
+                        return ("failed", None)
+                    else:
+                        i = int(f)
+                else:
+                    return ("failed", None)
 
             r1 = int(math.sqrt(R1))
             r2 = int(math.sqrt(R2))
+            res = "passed" if i == 10*(h+r1) + r2 else "failed"
 
-            if i == 10*(h+r1) + r2:
-                self.magicFormulaAct.setEnabled(False)
-                self.launchDesiredProgramAct.setEnabled(True)
-                self.allowedToQuit = True
+            return (res, text)
+        else:
+            return ("cancelled", None)
+
+    def GenericMagicFormula(self, formulaType, counterAttr, maxAttempts,
+                            title, prompt, failedText, informativeFailedText):
+        outcome, data = self._GenericMagicFormula(
+            formulaType, counterAttr, maxAttempts,
+            title, prompt, failedText, informativeFailedText)
+
+        if outcome == "too many attempts":
+            msgBox = QtGui.QMessageBox()
+            msgBox.setText(failedText)
+            msgBox.setInformativeText(informativeFailedText)
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
+            msgBox.setIcon(QtGui.QMessageBox.Information)
+            msgBox.exec_()
+        elif outcome == "failed":
+            msg = self.tr("Sorry, but you don't appear to be a wizard.")
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Information, self.tr(progname),
+                msg, QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.exec_()
+        else:
+            assert outcome in ("passed", "cancelled"), outcome
+
+        return (outcome, data)
+
+    @QtCore.pyqtSlot()
+    def magicFormula(self):
+        maxAttempts = 3
+
+        title = self.tr("Magic word")
+        prompt = self.tr("I say {0} and {1}. Please enter the magic word.")
+        failedText = self.tr("Too many failed attempts for the magic word.")
+        informativeFailedText = self.tr(
+            "After {0} failed attempts, the magic wand stops working.").format(
+            maxAttempts)
+        outcome, data = self.GenericMagicFormula(
+            "standard", "magicFormulaAttempts", maxAttempts, title, prompt,
+            failedText, informativeFailedText)
+
+        if outcome == "passed":
+            self.magicFormulaAct.setEnabled(False)
+            self.launchDesiredProgramAct.setEnabled(True)
+            self.allowedToQuit = True
+
+    @QtCore.pyqtSlot()
+    def superMagicFormula(self):
+        maxAttempts = 2
+
+        title = self.tr("Super magic word")
+        prompt = self.tr(
+            "I say {0} and {1}. Please enter the super magic word.")
+        failedText = self.tr(
+            "Too many failed attempts for the super magic word.")
+        informativeFailedText = self.tr(
+            "After {0} failed attempts at the super magic word, the "
+            "wand stops working.").format(maxAttempts)
+        outcome, text = self.GenericMagicFormula(
+            "super", "superMagicFormulaAttempts", maxAttempts, title, prompt,
+            failedText, informativeFailedText)
+
+        if outcome != "passed":
+            return
+
+        self.magicFormulaAct.setEnabled(False)
+        self.superMagicFormulaAct.setEnabled(False)
+        self.launchDesiredProgramAct.setEnabled(True)
+        self.allowedToQuit = True
+
+        # Find a place to store the token
+        cacheDir, cacheDirDisplayName = app.getCacheDir(
+            QtGui.QMessageBox.Warning, informativeText=self.tr(
+                "It is therefore impossible to store the super magic token "
+                "for future sessions."))
+        if not cacheDir:
+            return
+
+        # Resolution in minutes
+        resolution = 15
+
+        try:
+            i = int(text)
+        except ValueError:
+            # Allow decimal values
+            hundredths = 100 * math.modf(float(text))[0]
+            hours = 24 - (hundredths % 24)
+            # The validity duration d of the generated token will be such that:
+            #
+            #   (nIntervals - 1) * resolution <= d <= nIntervals * resolution
+            nIntervals = round(60*hours / resolution)
+        else:
+            # Duration of the super magic token in case no decimal part was
+            # entered
+            nIntervals = 10     # 2.5*60/15 = 10
+
+        # Current date and time expressed in UTC
+        now = datetime.datetime.now(datetime.timezone.utc)
+        # Truncate the minutes part to the closest multiple of 'resolution'
+        base = now.replace(minute=now.minute - (now.minute % resolution),
+                           second=0, microsecond=0)
+        endDate = base + datetime.timedelta(minutes=nIntervals*resolution)
+        endDateStr = endDate.strftime("%Y-%m-%d %H:%M:%S %z")
+
+        with open(os.path.join(cacheDir, "super-magic-token"), "w",
+                  encoding="utf-8") as tokenFile:
+            # Make the token slightly opaque to prevent the most obvious
+            # forgery
+            tokenFile.write("{} {} {}\n".format(nIntervals, resolution,
+                  hashlib.sha1(endDateStr.encode("ascii")).hexdigest()))
+
+        app.validSuperMagicToken = True
+        self.removeSuperMagicTokenAct.setEnabled(app.validSuperMagicToken)
+
+        msg = self.tr(
+            "You are now in possession of a super magic token that will be "
+            "valid for about {avg} minutes (actually, between {min} and {max} "
+            "minutes).").format(avg=round((nIntervals - 0.5) * resolution),
+                                min=(nIntervals - 1) * resolution,
+                                max=nIntervals * resolution)
+        msgBox = QtGui.QMessageBox(
+            QtGui.QMessageBox.Information, self.tr(progname),
+            msg, QtGui.QMessageBox.Ok)
+        msgBox.setTextFormat(QtCore.Qt.PlainText)
+        msgBox.exec_()
+
+    @QtCore.pyqtSlot()
+    def removeSuperMagicToken(self):
+        cacheDir, cacheDirDisplayName = app.getCacheDir(
+            QtGui.QMessageBox.Warning, informativeText=self.tr(
+                "It is therefore impossible to find or remove any super magic "
+                "token."))
+        if not cacheDir:
+            return False
+
+        tokenFilePath = os.path.join(cacheDir, "super-magic-token")
+        if not os.path.exists(tokenFilePath):
+            msg = self.tr("There is no super magic token to remove!")
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Warning, self.tr(progname),
+                msg, QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.exec_()
+
+            self.magicFormulaAttempts = 0 # Start afresh
+            self.magicFormulaAct.setEnabled(True)
+            self.superMagicFormulaAttempts = 0 # Start afresh
+            self.superMagicFormulaAct.setEnabled(True)
+            app.validSuperMagicToken = False
+            self.removeSuperMagicTokenAct.setEnabled(False)
+            return False
+
+        msg = self.tr("Are you sure you want to remove the super magic token?")
+        msgBox = QtGui.QMessageBox(
+            QtGui.QMessageBox.Warning, self.tr(progname),
+            msg, QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+        msgBox.setDefaultButton(QtGui.QMessageBox.Yes)
+        msgBox.setEscapeButton(QtGui.QMessageBox.No)
+        msgBox.setTextFormat(QtCore.Qt.PlainText)
+        answer = msgBox.exec_()
+
+        if answer == QtGui.QMessageBox.No:
+            return False
+        assert answer == QtGui.QMessageBox.Yes, (answer, QtGui.QMessageBox.Yes)
+
+        try:
+            os.unlink(tokenFilePath)
+        except (os.error, IOError) as e:
+            excMsg = e.strerror
+            if hasattr(e, "filename") and e.filename is not None:
+                excMsg += ": " + e.filename
+
+            msg = self.tr("""\
+The following error was encountered when trying to remove the super magic \
+token:
+
+{excMsg}""").format(excMsg=excMsg)
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Warning, self.tr(progname),
+                msg, QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.exec_()
+            return False
+
+        self.magicFormulaAttempts = 0 # Start afresh
+        self.magicFormulaAct.setEnabled(True)
+        self.superMagicFormulaAttempts = 0 # Start afresh
+        self.superMagicFormulaAct.setEnabled(True)
+        self.launchDesiredProgramAct.setEnabled(False)
+        self.allowedToQuit = False
+
+        app.validSuperMagicToken = False
+        self.removeSuperMagicTokenAct.setEnabled(False)
+
+        return True
 
 
 # Early program initialization
@@ -1550,6 +1848,12 @@ from .exercise_generator import Seen, EuclidianDivisionGenerator, \
     BasicSubstractionGenerator, RandomSubstractionGenerator, \
     VerbTenseComboGenerator, ConjugationsGenerator
 
+# Must be done before app.checkAlreadyRunningInstance(), because when there is
+# a super magic token, the lock file is likely to be released shortly after its
+# creation, and we need a specific algorithm to allow almost simultaneous
+# executions of the desired program(s) in these conditions.
+app.checkSuperMagicToken()
+
 # Use a lock file to determine if another instance is already running
 locked, lockFile = app.checkAlreadyRunningInstance()
 if locked:
@@ -1562,10 +1866,25 @@ try:
     if not app.checkConfigFileVersion():
         sys.exit(1)
 
-    app.mainWindow = MainWindow()
-    app.mainWindow.show()
-    retcode = app.exec_()
+    interactive = params["interactive"] \
+        or app.qSettings.value("ForceInteractive", type=int) == 1 \
+        or not app.validSuperMagicToken
+
+    if interactive:
+        app.mainWindow = MainWindow()
+        app.mainWindow.show()
+        retcode = app.exec_()
 finally:
     os.unlink(lockFile)
+
+if app.validSuperMagicToken and not interactive:
+    # The following call does an execvp(2) or similar, therefore it is
+    # necessary to flush all buffers associated to modified files beforehand.
+    # Since the QSettings should have been used only for reads in this code
+    # path, there is no need to call its sync() method, which would probably
+    # cause significant work to the hard drive.
+    app.launchDesiredProgram(simpleExec=True)
+    # Getting here means that the execvp(2) call failed.
+    retcode = 127
 
 sys.exit(retcode)
