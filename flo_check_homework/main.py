@@ -1379,7 +1379,9 @@ class MainWindow(QtGui.QMainWindow):
             msgBox.setInformativeText(self.tr(
                     "I suggest you to examine the corrections before leaving."))
             msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
-            msgBox.setIcon(QtGui.QMessageBox.Information)
+            # msgBox.setIcon(QtGui.QMessageBox.Information)
+            msgBox.setIconPixmap(QPixmapFromResource(
+                        "images/warning..._cedric_bosdon_.png"))
             msgBox.exec_()
 
             event.ignore()
@@ -1403,12 +1405,17 @@ class MainWindow(QtGui.QMainWindow):
 
     def createActions(self):
         if params["test_mode"]:
-            self.testAct = QtGui.QAction(self.tr("&Test"), self)
+            self.testAct = QtGui.QAction(
+                QtGui.QIcon(QPixmapFromResource(
+                        "images/nebu_work-margin80.png")),
+                self.tr("&Test"), self)
             self.testAct.setShortcut(self.tr("Ctrl+T"))
             self.testAct.setStatusTip(self.tr("Test something"))
             self.testAct.triggered.connect(self.test)
 
         self.launchDesiredProgramAct = QtGui.QAction(
+            QtGui.QIcon(QPixmapFromResource(
+                    "images/trafficlight-margin20.png")),
             self.tr("&Launch {0}").format(params["desired_program_pretty_name"]),
             self)
         self.launchDesiredProgramAct.setShortcut(self.tr("Ctrl+L"))
@@ -1442,6 +1449,8 @@ class MainWindow(QtGui.QMainWindow):
         self.superMagicFormulaAct.setEnabled(not app.validSuperMagicToken)
 
         self.removeSuperMagicTokenAct = QtGui.QAction(
+            QtGui.QIcon(QPixmapFromResource(
+                    "images/raemi_Cross_Out-margin160.png")),
             self.tr("&Remove the super magic token"), self)
         self.removeSuperMagicTokenAct.setStatusTip(
             self.tr("Renounce the advantages given by the super magic token"))
@@ -1496,6 +1505,7 @@ class MainWindow(QtGui.QMainWindow):
         self.magicToolBar = self.addToolBar(self.tr("Magic"))
         self.magicToolBar.addAction(self.magicFormulaAct)
         self.magicToolBar.addAction(self.superMagicFormulaAct)
+        self.magicToolBar.addAction(self.removeSuperMagicTokenAct)
         toolbars.append(self.magicToolBar)
 
         iconSize = self.qSettings.value("ToolbarIconSize", type=int)
@@ -1577,7 +1587,9 @@ class MainWindow(QtGui.QMainWindow):
                     "be allowed to launch {0}!").format(
                     params["desired_program_pretty_name"]))
             msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
-            msgBox.setIcon(QtGui.QMessageBox.Information)
+            # msgBox.setIcon(QtGui.QMessageBox.Information)
+            msgBox.setIconPixmap(QPixmapFromResource(
+                        "images/warning..._cedric_bosdon_.png"))
             msgBox.exec_()
 
     @QtCore.pyqtSlot()
