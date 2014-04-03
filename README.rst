@@ -11,11 +11,20 @@ flo-check-homework presents one or more questionnaires to the user. Once all
 questions have been answered, and if the score exceeds a predefined threshold,
 a special button is enabled. When pressed, this button launches the program
 (with optional arguments) that was specified on flo-check-homework's command
-line.
+line. For instance, the following command::
 
-A "magic word" button allows one to bypass the test in case the pupil has
-already done his homework in another way. It also makes it possible to exit
-the program immediately.
+  flo-check-homework -- prog arg1 arg2 arg3
+
+will start flo-check-homework without any option and allow the pupil to run,
+if the questionnaires receive good enough answers, the program 'prog' with 3
+arguments: 'arg1', 'arg2' and 'arg3'. To see all available command line
+options, you may run::
+
+  flo-check-homework --help
+
+In flo-check-homework's graphical user interface, a "magic word" button allows
+one to bypass the test in case the pupil has already done his homework in
+another way. It also makes it possible to exit the program immediately.
 
 Indeed, flo-check-homework refuses to quit immediately unless option -e was
 given or a sufficient score was obtained; this is done so as to avoid the
@@ -60,13 +69,25 @@ This will create an appropriate launcher script in /usr/local/games for every
 program listed in DATAFILE. If /usr/local/games is prepended to the system
 PATH, then the launcher scripts will take precedence over the corresponding
 game executables when a user tries to run a game, unless a full path to the
-game executable is specified.
+game executable is specified. So, when using wrapper scripts, the call chain
+looks like the following::
 
-This also works if the game is started from the freedesktop_ menu, because
-freedesktop .desktop files usually don't specify a full path to the executable
-(when they do, the only recourse is to fix the .desktop file manually and
-report a bug to the game in question). The format of .desktop files is
-described in the `Desktop Entry specification`_.
+  --> wrapper script 'foo' called with arguments arg1 ... argn
+      --> flo-check-homework [some options] -- foo arg1 ... argn
+          --> foo arg1 ... argn
+              (or '<launcher> foo arg1 ... argn' if using the ProgramLauncher
+              feature)
+
+where each arrow indicates a different process. "some options" typically
+contains -p (--pretty-name) to tell flo-check-homework the "pretty name" of
+program 'foo', for displaying in the graphical user interface.
+
+The above trick, based on the PATH environment variable, also works if the
+game is started from the freedesktop_ menu, because freedesktop .desktop files
+usually don't specify a full path to the executable (when they do, the only
+recourse is to fix the .desktop file manually and report a bug to the game in
+question). The format of .desktop files is described in the `Desktop Entry
+specification`_.
 
 flo-check-homework-decorate-games has options to customize the paths such as
 /usr/games and /usr/local/games, as well as options to choose which locale to
@@ -171,10 +192,10 @@ It is possible to run flo-check-homework from a clone of that repository, but
 two things that are not part of it have to be set up in order for everything
 to work properly:
 
-  - the flo_check_homework/images directory tree containing “reward images”
-    must be copied from a release tarball, otherwise there will be an error
-    when all questions have been answered and the program tries to show an
-    image;
+  - the flo_check_homework/images directory tree containing icons and “reward
+    images” must be copied from a release tarball, otherwise there will be an
+    error when all questions have been answered and the program tries to show
+    an image;
   - the .qm files (used for translations) that are relevant to your locale
     settings must be generated from the corresponding .ts source files; this
     can be done automatically with the Makefile shipped in the top-level

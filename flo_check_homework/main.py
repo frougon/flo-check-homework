@@ -473,7 +473,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.""")
                         time.sleep(0.1)
             except (os.error, IOError) as e:
                 excMsg = e.strerror
-                if hasattr(e, "filename"):
+                if hasattr(e, "filename") and e.filename is not None:
                     excMsg += ": " + e.filename
 
                 msg = self.tr("""\
