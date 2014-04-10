@@ -1573,9 +1573,11 @@ class MainWindow(QtGui.QMainWindow):
                 self, QImageFromResource(imageRes))
             rewardWindow.show()
 
-        # Activate the program launcher button if authorized
         if self.mainWidget.successfulWork():
-            self.launchDesiredProgramAct.setEnabled(True)
+            # This enables the program launcher button, among others.
+            self.grantSuperMagicToken(10, 15)
+            # The exit action is always enabled but only prints an explanatory
+            # message without quitting when self.allowedToQuit is False.
             # self.exitAct.setEnabled(True)
         elif not images:
             # Give an explanation if no image was displayed and the score

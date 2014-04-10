@@ -33,6 +33,14 @@ corrections that they can blindly copy after rerunning the program. For the
 same reason, some of the question generators purposedly don't remember
 incorrect answers, in contrast with the initial design.
 
+Since version 0.10.0, there is a new feature called *super magic word* that
+gives, if properly entered, a *super magic token* which is valid for a limited
+amount of time (see `The super magic word`_ below). This allows more freedom
+to run the available games once the token has been granted. Since my goal is
+definitely not to use technical means in order to limit the pleasure children
+can have with games, a successful work does grant a super magic token, just as
+if the super magic word had been entered.
+
 Currently, the questions are designed to help consolidate simple additions,
 substractions, multiplications, euclidian divisions and conjugations of French
 verbs. The questionnaires are built at run-time and can be customized to some
