@@ -1618,6 +1618,133 @@ class MainWindow(QtGui.QMainWindow):
         #         print w.sizePolicy().horizontalPolicy(),
         #     print w.maximumSize()
 
+    def grantSuperMagicToken(self, nIntervals, resolution):
+        """Grant a super magic token.
+
+        The validity duration d of the generated token will be such that:
+
+          (nIntervals - 1) * resolution <= d <= nIntervals * resolution
+
+        where resolution is expressed in minutes.
+
+        """
+        self.magicFormulaAct.setEnabled(False)
+        self.superMagicFormulaAct.setEnabled(False)
+        self.launchDesiredProgramAct.setEnabled(True)
+        self.allowedToQuit = True
+
+        # Find a place to store the token
+        cacheDir, cacheDirDisplayName = app.getCacheDir(
+            QtGui.QMessageBox.Warning, informativeText=self.tr(
+                "It is therefore impossible to store the super magic token "
+                "for future sessions."))
+        if not cacheDir:
+            res = False
+        else:
+            res = True
+            # Current date and time expressed in UTC
+            now = datetime.datetime.now(datetime.timezone.utc)
+            # Truncate the minutes part to the closest multiple of 'resolution'
+            base = now.replace(minute=now.minute - (now.minute % resolution),
+                               second=0, microsecond=0)
+            endDate = base + datetime.timedelta(minutes=nIntervals*resolution)
+            endDateStr = endDate.strftime("%Y-%m-%d %H:%M:%S %z")
+
+            with open(os.path.join(cacheDir, "super-magic-token"), "w",
+                      encoding="utf-8") as tokenFile:
+                # Make the token slightly opaque to prevent the most obvious
+                # forgery
+                tokenFile.write("{} {} {}\n".format(nIntervals, resolution,
+                      hashlib.sha1(endDateStr.encode("ascii")).hexdigest()))
+
+            app.validSuperMagicToken = True
+            self.removeSuperMagicTokenAct.setEnabled(app.validSuperMagicToken)
+
+            msg = self.tr(
+                "You are now in possession of a super magic token that will "
+                "be valid for about {avg} minutes (actually, between {min} "
+                "and {max} minutes).").format(
+                avg=round((nIntervals - 0.5) * resolution),
+                min=(nIntervals - 1) * resolution,
+                max=nIntervals * resolution)
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Information, self.tr(progname),
+                msg, QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.exec_()
+
+        return res
+
+    @QtCore.pyqtSlot()
+    def removeSuperMagicToken(self):
+        cacheDir, cacheDirDisplayName = app.getCacheDir(
+            QtGui.QMessageBox.Warning, informativeText=self.tr(
+                "It is therefore impossible to find or remove any super magic "
+                "token."))
+        if not cacheDir:
+            return False
+
+        tokenFilePath = os.path.join(cacheDir, "super-magic-token")
+        if not os.path.exists(tokenFilePath):
+            msg = self.tr("There is no super magic token to remove!")
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Warning, self.tr(progname),
+                msg, QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.exec_()
+
+            self.magicFormulaAttempts = 0 # Start afresh
+            self.magicFormulaAct.setEnabled(True)
+            self.superMagicFormulaAttempts = 0 # Start afresh
+            self.superMagicFormulaAct.setEnabled(True)
+            app.validSuperMagicToken = False
+            self.removeSuperMagicTokenAct.setEnabled(False)
+            return False
+
+        msg = self.tr("Are you sure you want to remove the super magic token?")
+        msgBox = QtGui.QMessageBox(
+            QtGui.QMessageBox.Warning, self.tr(progname),
+            msg, QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+        msgBox.setDefaultButton(QtGui.QMessageBox.Yes)
+        msgBox.setEscapeButton(QtGui.QMessageBox.No)
+        msgBox.setTextFormat(QtCore.Qt.PlainText)
+        answer = msgBox.exec_()
+
+        if answer == QtGui.QMessageBox.No:
+            return False
+        assert answer == QtGui.QMessageBox.Yes, (answer, QtGui.QMessageBox.Yes)
+
+        try:
+            os.unlink(tokenFilePath)
+        except (os.error, IOError) as e:
+            excMsg = e.strerror
+            if hasattr(e, "filename") and e.filename is not None:
+                excMsg += ": " + e.filename
+
+            msg = self.tr("""\
+The following error was encountered when trying to remove the super magic \
+token:
+
+{excMsg}""").format(excMsg=excMsg)
+            msgBox = QtGui.QMessageBox(
+                QtGui.QMessageBox.Warning, self.tr(progname),
+                msg, QtGui.QMessageBox.Ok)
+            msgBox.setTextFormat(QtCore.Qt.PlainText)
+            msgBox.exec_()
+            return False
+
+        self.magicFormulaAttempts = 0 # Start afresh
+        self.magicFormulaAct.setEnabled(True)
+        self.superMagicFormulaAttempts = 0 # Start afresh
+        self.superMagicFormulaAct.setEnabled(True)
+        self.launchDesiredProgramAct.setEnabled(False)
+        self.allowedToQuit = False
+
+        app.validSuperMagicToken = False
+        self.removeSuperMagicTokenAct.setEnabled(False)
+
+        return True
+
     def _GenericMagicFormula(self, formulaType, counterAttr, maxAttempts,
                             title, prompt, failedText, informativeFailedText):
         if getattr(self, counterAttr) >= maxAttempts:
@@ -1720,19 +1847,6 @@ class MainWindow(QtGui.QMainWindow):
         if outcome != "passed":
             return
 
-        self.magicFormulaAct.setEnabled(False)
-        self.superMagicFormulaAct.setEnabled(False)
-        self.launchDesiredProgramAct.setEnabled(True)
-        self.allowedToQuit = True
-
-        # Find a place to store the token
-        cacheDir, cacheDirDisplayName = app.getCacheDir(
-            QtGui.QMessageBox.Warning, informativeText=self.tr(
-                "It is therefore impossible to store the super magic token "
-                "for future sessions."))
-        if not cacheDir:
-            return
-
         # Resolution in minutes
         resolution = 15
 
@@ -1751,105 +1865,8 @@ class MainWindow(QtGui.QMainWindow):
             # entered
             nIntervals = 10     # 2.5*60/15 = 10
 
-        # Current date and time expressed in UTC
-        now = datetime.datetime.now(datetime.timezone.utc)
-        # Truncate the minutes part to the closest multiple of 'resolution'
-        base = now.replace(minute=now.minute - (now.minute % resolution),
-                           second=0, microsecond=0)
-        endDate = base + datetime.timedelta(minutes=nIntervals*resolution)
-        endDateStr = endDate.strftime("%Y-%m-%d %H:%M:%S %z")
-
-        with open(os.path.join(cacheDir, "super-magic-token"), "w",
-                  encoding="utf-8") as tokenFile:
-            # Make the token slightly opaque to prevent the most obvious
-            # forgery
-            tokenFile.write("{} {} {}\n".format(nIntervals, resolution,
-                  hashlib.sha1(endDateStr.encode("ascii")).hexdigest()))
-
-        app.validSuperMagicToken = True
-        self.removeSuperMagicTokenAct.setEnabled(app.validSuperMagicToken)
-
-        msg = self.tr(
-            "You are now in possession of a super magic token that will be "
-            "valid for about {avg} minutes (actually, between {min} and {max} "
-            "minutes).").format(avg=round((nIntervals - 0.5) * resolution),
-                                min=(nIntervals - 1) * resolution,
-                                max=nIntervals * resolution)
-        msgBox = QtGui.QMessageBox(
-            QtGui.QMessageBox.Information, self.tr(progname),
-            msg, QtGui.QMessageBox.Ok)
-        msgBox.setTextFormat(QtCore.Qt.PlainText)
-        msgBox.exec_()
-
-    @QtCore.pyqtSlot()
-    def removeSuperMagicToken(self):
-        cacheDir, cacheDirDisplayName = app.getCacheDir(
-            QtGui.QMessageBox.Warning, informativeText=self.tr(
-                "It is therefore impossible to find or remove any super magic "
-                "token."))
-        if not cacheDir:
-            return False
-
-        tokenFilePath = os.path.join(cacheDir, "super-magic-token")
-        if not os.path.exists(tokenFilePath):
-            msg = self.tr("There is no super magic token to remove!")
-            msgBox = QtGui.QMessageBox(
-                QtGui.QMessageBox.Warning, self.tr(progname),
-                msg, QtGui.QMessageBox.Ok)
-            msgBox.setTextFormat(QtCore.Qt.PlainText)
-            msgBox.exec_()
-
-            self.magicFormulaAttempts = 0 # Start afresh
-            self.magicFormulaAct.setEnabled(True)
-            self.superMagicFormulaAttempts = 0 # Start afresh
-            self.superMagicFormulaAct.setEnabled(True)
-            app.validSuperMagicToken = False
-            self.removeSuperMagicTokenAct.setEnabled(False)
-            return False
-
-        msg = self.tr("Are you sure you want to remove the super magic token?")
-        msgBox = QtGui.QMessageBox(
-            QtGui.QMessageBox.Warning, self.tr(progname),
-            msg, QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
-        msgBox.setDefaultButton(QtGui.QMessageBox.Yes)
-        msgBox.setEscapeButton(QtGui.QMessageBox.No)
-        msgBox.setTextFormat(QtCore.Qt.PlainText)
-        answer = msgBox.exec_()
-
-        if answer == QtGui.QMessageBox.No:
-            return False
-        assert answer == QtGui.QMessageBox.Yes, (answer, QtGui.QMessageBox.Yes)
-
-        try:
-            os.unlink(tokenFilePath)
-        except (os.error, IOError) as e:
-            excMsg = e.strerror
-            if hasattr(e, "filename") and e.filename is not None:
-                excMsg += ": " + e.filename
-
-            msg = self.tr("""\
-The following error was encountered when trying to remove the super magic \
-token:
-
-{excMsg}""").format(excMsg=excMsg)
-            msgBox = QtGui.QMessageBox(
-                QtGui.QMessageBox.Warning, self.tr(progname),
-                msg, QtGui.QMessageBox.Ok)
-            msgBox.setTextFormat(QtCore.Qt.PlainText)
-            msgBox.exec_()
-            return False
-
-        self.magicFormulaAttempts = 0 # Start afresh
-        self.magicFormulaAct.setEnabled(True)
-        self.superMagicFormulaAttempts = 0 # Start afresh
-        self.superMagicFormulaAct.setEnabled(True)
-        self.launchDesiredProgramAct.setEnabled(False)
-        self.allowedToQuit = False
-
-        app.validSuperMagicToken = False
-        self.removeSuperMagicTokenAct.setEnabled(False)
-
-        return True
+        tokenSuccessfullyWritten = self.grantSuperMagicToken(nIntervals,
+                                                             resolution)
 
 
 # Early program initialization
