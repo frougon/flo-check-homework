@@ -1716,15 +1716,19 @@ class MainWindow(QtGui.QMainWindow):
         msg = self.tr("Are you sure you want to remove the super magic token?")
         msgBox = QtGui.QMessageBox(
             QtGui.QMessageBox.Warning, self.tr(progname),
-            msg, QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
-        msgBox.setDefaultButton(QtGui.QMessageBox.Yes)
-        msgBox.setEscapeButton(QtGui.QMessageBox.No)
+            msg)
+        removeButton = msgBox.addButton(self.tr("&Remove"),
+                                        QtGui.QMessageBox.AcceptRole)
+        cancelButton = msgBox.addButton(QtGui.QMessageBox.Cancel)
+        msgBox.setDefaultButton(removeButton)
+        msgBox.setEscapeButton(cancelButton)
         msgBox.setTextFormat(QtCore.Qt.PlainText)
-        answer = msgBox.exec_()
+        msgBox.exec_()
+        clickedButton = msgBox.clickedButton()
 
-        if answer == QtGui.QMessageBox.No:
+        if clickedButton == cancelButton:
             return False
-        assert answer == QtGui.QMessageBox.Yes, (answer, QtGui.QMessageBox.Yes)
+        assert clickedButton == removeButton, (clickedButton, removeButton)
 
         try:
             os.unlink(tokenFilePath)
