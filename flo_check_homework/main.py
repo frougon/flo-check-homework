@@ -251,11 +251,21 @@ class HomeWorkCheckApp(QtGui.QApplication):
             self.qSettings.setValue("ForceInteractive", 0)
 
     def setupTranslations(self):
+        # If the translators are garbage collected (or the data used to
+        # initialize them), then translation doesn't work.
+        self.qtTranslator = QtCore.QTranslator()
+        # Load the translations built in Qt for the current locale. Among
+        # others, this enables the translation of QtGui.QMessageBox.Yes/No
+        # button texts.
+        if self.qtTranslator.load(
+            QtCore.QLocale().system(), "qt_", "",
+            QtCore.QLibraryInfo.location(QtCore.QLibraryInfo.TranslationsPath)):
+            self.installTranslator(self.qtTranslator)
+
         # Get a list of locale names (such as 'C', 'fr-FR' or 'en-US') for
         # translation purposes, in decreasing order of preference.
         locales = QtCore.QLocale().uiLanguages()
-        # If the translators are garbage collected (or the data used to
-        # initialize them), then translation doesn't work.
+        # Prevent the translators from being garbage-collected (see above).
         self.l10n_data = []
 
         for loc in reversed(list(locales)):
