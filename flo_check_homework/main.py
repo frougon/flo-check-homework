@@ -220,7 +220,7 @@ class HomeWorkCheckApp(QtGui.QApplication):
         # We need the QSettings to read the ProgramLauncher setting. To avoid a
         # QSettings.sync() before the final os.execvp() every time the program
         # is run with a valid super magic token, we'll restrict usage of the
-        # QSettings to read-only in this class.
+        # QSettings to read-only in this class, or explicitely sync.
         self.qSettings = QtCore.QSettings()
 
         self.desiredProgramProcess = QtCore.QProcess(self)
@@ -249,9 +249,8 @@ class HomeWorkCheckApp(QtGui.QApplication):
 
         if not self.qSettings.contains("ForceInteractive"):
             self.qSettings.setValue("ForceInteractive", 0)
+            self.qSettings.sync() # See above, when self.qSettings is assigned
 
-        if not self.qSettings.contains("AllowExitBeforeChild"):
-            self.qSettings.setValue("AllowExitBeforeChild", 1)
         # Indicates if the desired (child) program is currently running
         self.childRunning = False
 
@@ -1571,6 +1570,7 @@ class MainWindow(QtGui.QMainWindow):
         if not self.qSettings.contains("ProgramLauncher"):
             self.qSettings.setValue("ProgramLauncher", "")
 
+        self.loadOrInitIntSetting("AllowExitBeforeChild", 1)
         self.loadOrInitIntSetting("ToolbarIconSize", 64)
 
     def writeSettings(self):
