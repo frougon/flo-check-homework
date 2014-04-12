@@ -41,6 +41,15 @@ definitely not to use technical means in order to limit the pleasure children
 can have with games, a successful work does grant a super magic token, just as
 if the super magic word had been entered.
 
+Note:
+
+  Version 0.10.0 also introduced the ``AllowExitBeforeChild`` configuration
+  file parameter in the ``General`` section, defaulting to 1. If set to 0,
+  quitting is also forbidden as long as the program specified on the command
+  line ("desired program") is running---assuming it was started from
+  flo-check-homework. This can be useful with kids misusing a super magic
+  token to run dozens of games simultaneously.
+
 Currently, the questions are designed to help consolidate simple additions,
 substractions, multiplications, euclidian divisions and conjugations of French
 verbs. The questionnaires are built at run-time and can be customized to some

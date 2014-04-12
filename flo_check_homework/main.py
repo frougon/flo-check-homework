@@ -250,6 +250,11 @@ class HomeWorkCheckApp(QtGui.QApplication):
         if not self.qSettings.contains("ForceInteractive"):
             self.qSettings.setValue("ForceInteractive", 0)
 
+        if not self.qSettings.contains("AllowExitBeforeChild"):
+            self.qSettings.setValue("AllowExitBeforeChild", 1)
+        # Indicates if the desired (child) program is currently running
+        self.childRunning = False
+
     def setupTranslations(self):
         # If the translators are garbage collected (or the data used to
         # initialize them), then translation doesn't work.
@@ -577,6 +582,7 @@ program:
                 msgBox.setTextFormat(QtCore.Qt.PlainText)
                 msgBox.exec_()
         else:
+            self.childRunning = True
             self.desiredProgramProcess.start(self.executedProgram, args)
 
     @QtCore.pyqtSlot()
@@ -599,6 +605,7 @@ program:
             msgBox.setIcon(QtGui.QMessageBox.Warning)
             msgBox.exec_()
 
+        self.childRunning = False
         if self.mainWindowInitialized:
             self.mainWindow.launchDesiredProgramAct.setEnabled(True)
 
@@ -624,6 +631,7 @@ program:
             msgBox.setIcon(QtGui.QMessageBox.Warning)
             msgBox.exec_()
 
+        self.childRunning = False
         if self.mainWindowInitialized:
             self.mainWindow.launchDesiredProgramAct.setEnabled(True)
 
@@ -1378,7 +1386,21 @@ class MainWindow(QtGui.QMainWindow):
 
     def closeEvent(self, event):
         if self.allowedToQuit:
-            event.accept()
+            if self.qSettings.value("AllowExitBeforeChild", type=int) == 1 \
+                    or not app.childRunning:
+                event.accept()
+            else:
+                msgBox = QtGui.QMessageBox()
+                msgBox.setText(self.tr("Impossible to exit now."))
+                msgBox.setInformativeText(self.tr(
+                        "You are not allowed to quit this program before "
+                        "{0} is terminated.").format(
+                        params["desired_program_pretty_name"]))
+                msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
+                msgBox.setIcon(QtGui.QMessageBox.Information)
+                msgBox.exec_()
+
+                event.ignore()
         else:
             if not self.quitTimer.isActive():
                 # QtCore.QTimer.start() wants the delay in milliseconds
@@ -1432,7 +1454,8 @@ class MainWindow(QtGui.QMainWindow):
         self.launchDesiredProgramAct.setStatusTip(
             self.tr("Launch the program {0}").format(
                 params["desired_program_pretty_name"]))
-        self.launchDesiredProgramAct.setEnabled(app.validSuperMagicToken)
+        self.launchDesiredProgramAct.setEnabled(
+            app.validSuperMagicToken and not app.childRunning)
         self.launchDesiredProgramAct.triggered.connect(
             app.launchDesiredProgram)
 
@@ -1642,7 +1665,7 @@ class MainWindow(QtGui.QMainWindow):
         """
         self.magicFormulaAct.setEnabled(False)
         self.superMagicFormulaAct.setEnabled(False)
-        self.launchDesiredProgramAct.setEnabled(True)
+        self.launchDesiredProgramAct.setEnabled(not app.childRunning)
         self.allowedToQuit = True
 
         # Find a place to store the token
@@ -1841,7 +1864,7 @@ token:
 
         if outcome == "passed":
             self.magicFormulaAct.setEnabled(False)
-            self.launchDesiredProgramAct.setEnabled(True)
+            self.launchDesiredProgramAct.setEnabled(not app.childRunning)
             self.allowedToQuit = True
 
     @QtCore.pyqtSlot()
