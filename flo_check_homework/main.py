@@ -28,6 +28,21 @@ tw = textwrap.TextWrapper(width=78, break_long_words=False,
                           break_on_hyphens=True)
 from textwrap import dedent
 
+import decimal
+from decimal import Decimal
+# In the state of super magic formulas at the time of this writing, a precision
+# of 6 (3 for the integer part and 3 for the fractional part) should be enough
+# to represent any correct answer. Thus, the precision of the default decimal
+# context (28) should be largely enough, even if someone modifies the algorithm
+# and forgets to check that the context precision is enough for the new
+# computations.
+decimalContext = decimal.Context(prec=28)
+# InvalidOperation should already be enabled by default
+# FloatOperation provides a safety net against possibly subtle bugs
+for trapName in ("InvalidOperation", "FloatOperation"):
+    decimalContext.traps[getattr(decimal, trapName)] = True
+decimal.setcontext(decimalContext)
+
 from . import fch_util, conjugations, image_widgets
 
 
@@ -183,6 +198,23 @@ def run_cleanup_handlers_for_program_exit():
 
     # Warning: bitwise OR!
     return functools.reduce(operator.or_, retvals, 0)
+
+
+def getDecimalDigit(d, n):
+    """Extract the nth digit of decimal d after the decimal point.
+
+    This function is based on the decimal module to avoid problems
+    such as:
+
+    >>> 269.462 - 269
+    0.4619999999999891
+    >>> int(1000*(269.462 - 269))
+    461
+
+    """
+    places = Decimal(10) ** -n
+    td = d.quantize(places, rounding=decimal.ROUND_DOWN)
+    return td.as_tuple().digits[-1]
 
 
 class HomeWorkCheckApp(QtGui.QApplication):
@@ -1803,20 +1835,26 @@ token:
 
             try:
                 i = int(text)
+                cond = True
             except ValueError:
                 if formulaType == "super":
                     try:
-                        f = float(text)
-                    except ValueError:
+                        # This will avoid nasty surprises such as:
+                        #   269.462 - 269              => 0.4619999999999891
+                        #   int(1000*(269.462 - 269))  => 461
+                        d = Decimal(text)
+                    except decimal.InvalidOperation:
                         return ("failed", None)
                     else:
-                        i = int(f)
+                        i = int(d)
+                        d1, d3 = ( getDecimalDigit(d, n) for n in (1, 3) )
+                        cond = d >= 0 and 10*d1 + d3 == 2*h
                 else:
                     return ("failed", None)
 
             r1 = int(math.sqrt(R1))
             r2 = int(math.sqrt(R2))
-            res = "passed" if i == 10*(h+r1) + r2 else "failed"
+            res = "passed" if (cond and i == 10*(h+r1) + r2) else "failed"
 
             return (res, text)
         else:
@@ -1893,8 +1931,13 @@ token:
             i = int(text)
         except ValueError:
             # Allow decimal values
-            hundredths = 100 * math.modf(float(text))[0]
-            hours = 24 - (hundredths % 24)
+            try:
+                d = Decimal(text)
+            except decimal.InvalidOperation:
+                assert False, "{!r} should be a readable as a decimal " \
+                    "according to earlier validation".format(text)
+            hundredthsDigit = getDecimalDigit(d, 2)
+            hours = 2*(10 - hundredthsDigit)
             # The validity duration d of the generated token will be such that:
             #
             #   (nIntervals - 1) * resolution <= d <= nIntervals * resolution
