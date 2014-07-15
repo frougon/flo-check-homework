@@ -188,8 +188,8 @@ The following software is required to run flo-check-homework:
     versions will most probably not work with this version of
     flo-check-homework.
 
-Version 0.9.12 of flo-check-homework has been tested on Linux with
-Python 3.3.2, Qt 4.8.2 and PyQt 4.10.3. It should work on any platform with
+Version 0.11.0 of flo-check-homework has been tested on Linux with
+Python 3.4.1, Qt 4.8.2 and PyQt 4.10.3. It should work on any platform with
 the aforementioned dependencies installed, but trivial bugs are likely to pop
 up on non-Unix platforms as no test whatsoever has been done on them. Please
 report.
