@@ -38,9 +38,9 @@ Python source files ---------> .ts files -----------> .qm files
    anymore. However, this may delete translations that might be useful to
    translators in the future if similar strings are (re-)added to the code.
 
-   Note: because of a bug in pylupdate4 as shipped in PyQt 4.10.3, you need
-         either a recent enough PyQt or a patched pylupdate4 in order to
-         generate or update the .ts files for flo-check-homework. See:
+   Note: in order to generate or update the .ts files for flo-check-homework,
+         you need PyQt version 4.10.4 or later. Older versions have a bug in
+         pylupdate4 that prevents this operation from working properly. See:
 
            http://www.riverbankcomputing.com/pipermail/pyqt/2013-August/033174.html
 
