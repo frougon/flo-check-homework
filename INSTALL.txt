@@ -34,19 +34,19 @@ Uninstallation should be as easy as:
 
   pip uninstall flo-check-homework
 
-For more information about pip and virtualenv, you can visit:
+For more information about pip, venv.py/pyvenv and virtualenv, you can
+visit the following pages:
 
   <https://pip.pypa.io/>
-
-and:
-
+  <https://docs.python.org/3/library/venv.html>
   <https://virtualenv.pypa.io/>
 
-The above command should be enough to run flo-check-homework. If you
-want to use flo-check-homework-decorate-games to have flo-check-homework
-automatically started whenever some programs that you have defined are
-invoked (acting as a sort of "proxy" for these programs), please refer
-to README.rst (or README.xhtml on the web site) and the output of:
+The above 'pip install ...' command should be enough to run
+flo-check-homework. If you want to use flo-check-homework-decorate-games
+to have flo-check-homework automatically started whenever some programs
+that you have defined are invoked (acting as a sort of "proxy" for these
+programs), please refer to README.rst (or README.xhtml on the web site)
+and the output of:
 
   flo-check-homework-decorate-games --help
 
@@ -62,7 +62,12 @@ into or from a particular Python installation.
 Normally, a given 'pip' executable is tied to a particular Python
 installation that can be discovered by running 'pip --version' (or
 'pip3 --version', etc., depending on the particular 'pip' executable
-name; for sanity's sake, we'll assume 'pip' in the rest of this document).
+name; for sanity's sake, we'll assume 'pip' in the rest of this
+document). For instance, the following would indicate a Python 3.4
+installation based at /some/path:
+
+  % pip --version
+  pip 1.5.6 from /some/path/lib/python3.4/site-packages (python 3.4)
 
 In general, it is safe to run 'pip' from a Python interpreter you
 installed yourself without a Linux package manager or similar. It is
