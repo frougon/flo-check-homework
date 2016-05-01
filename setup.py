@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # setup.py --- Setup script for flo-check-homework
-# Copyright (c) 2013, 2014  Florent Rougon
+# Copyright (c) 2013, 2014, 2016  Florent Rougon
 #
 # This file is part of flo-check-homework.
 #
@@ -61,9 +61,9 @@ def main():
           long_description=long_description,
           author="Florent Rougon",
           author_email="f.rougon@free.fr",
-          url="http://people.via.ecp.fr/~flo/",
+          url="http://frougon.net/",
           download_url=\
-              "http://people.via.ecp.fr/~flo/projects/flo-check-homework/"
+              "http://frougon.net/projects/flo-check-homework/"
           "dist/{}/{}-{}.tar.bz2".format(VERSION_NOSUFFIX, PACKAGE, VERSION),
           keywords=[PACKAGE, "education", "learning", "calculus", "grammar"],
           requires=["PyQt4 (>=4.9)"],
