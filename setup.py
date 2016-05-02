@@ -21,11 +21,15 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
 # MA  02110-1301 USA.
 
-import os, sys, subprocess, textwrap
+import sys
+import os
+import subprocess
+import traceback
 from distutils.core import setup
+
 import flo_check_homework       # To access flo_check_homework.version_info
 
-PACKAGE = "flo-check-homework"  # PyPI package name
+PYPKG_NAME = "flo-check-homework"  # PyPI package name
 PYPKG = "flo_check_homework"    # name of the main Python package
 MAIN_PROGNAME = "flo-check-homework" # name of the main program
 DECORATE_PROGNAME = os.path.join("tools", "flo-check-homework-decorate-games",
@@ -35,7 +39,66 @@ from flo_check_homework import __version__ as VERSION
 VERSION_NOSUFFIX = '.'.join([ str(i)
                               for i in flo_check_homework.version_info[:3] ])
 
-def main():
+# This function must be run from the root directory of the Git repository.
+def writeChangelogData(output=None, firstCommit=None, ChangeLog_start=None):
+    args = ["gitlog-to-changelog", "--format=%s%n%n%b%n"]
+    if firstCommit is not None:
+        args.extend(["--", "{0}..".format(firstCommit)])
+
+    try:
+        subprocess.check_call(args, stdout=output)
+    except os.error:
+        print(traceback.format_exc(), file=sys.stderr)
+
+        print("""\
+Error (see above for a traceback): unable to run {prg}
+================================================={underlining}
+Maybe this program is not installed on your system. You can download it from:
+
+  {url}
+
+Note: if you have problems with the infamous shell+Perl crap in the first lines
+of that file, you can replace it with a simple shebang line such as
+"#! /usr/bin/perl".""".format(
+   prg=args[0],
+   underlining="=" * len(args[0]),
+   url="http://git.savannah.gnu.org/gitweb/?p=gnulib.git;a=blob_plain;"
+       "f=build-aux/gitlog-to-changelog"), file=sys.stderr)
+        sys.exit(1)
+
+    if ChangeLog_start is not None:
+        with open(ChangeLog_start, "r", encoding="utf-8") as orig_ch:
+            output.write("\n" + orig_ch.read())
+
+
+# This function must be run from the root directory of the Git repository.
+def generateChangelog(ch_name, write_to_stdout=False):
+    firstCommit = "b854546837c229e17e8e2e4e7cf44f429129e496"
+    ChangeLog_start = "ChangeLog.init"
+
+    print("Converting the Git log into ChangeLog format...", end=' ',
+          file=sys.stderr)
+
+    if write_to_stdout:
+        writeChangelogData(output=None, firstCommit=firstCommit,
+                           ChangeLog_start=ChangeLog_start)
+    else:
+        tmp_ch_name = "{0}.new".format(ch_name)
+
+        try:
+            with open(tmp_ch_name, "w", encoding="utf-8") as tmp_ch:
+                writeChangelogData(output=tmp_ch, firstCommit=firstCommit,
+                                   ChangeLog_start=ChangeLog_start)
+
+            os.rename(tmp_ch_name, ch_name)
+        finally:
+            if os.path.exists(tmp_ch_name):
+                os.unlink(tmp_ch_name)
+
+    print("done.", file=sys.stderr)
+
+
+def do_setup():
     # Using the Qt resource system for images wastes a lot of space and is
     # quite ugly: we need the images in the source package (for the user to
     # see or modify); with PyQt resources, they would also be translated into
@@ -54,7 +117,7 @@ def main():
     with open("README.rst", "r", encoding="utf-8") as f:
         long_description = f.read()
 
-    setup(name=PACKAGE,
+    setup(name=PYPKG_NAME,
           version=VERSION,
           description="A program that allows to run other programs only after "
           "a set of questions have been correctly answered",
@@ -64,8 +127,9 @@ def main():
           url="http://frougon.net/",
           download_url=\
               "http://frougon.net/projects/flo-check-homework/"
-          "dist/{}/{}-{}.tar.bz2".format(VERSION_NOSUFFIX, PACKAGE, VERSION),
-          keywords=[PACKAGE, "education", "learning", "calculus", "grammar"],
+          "dist/{}/{}-{}.tar.bz2".format(VERSION_NOSUFFIX, PYPKG_NAME,
+                                         VERSION),
+          keywords=[PYPKG_NAME, "education", "learning", "calculus", "grammar"],
           requires=["PyQt4 (>=4.9)"],
           classifiers=[
             "Programming Language :: Python",
@@ -90,5 +154,19 @@ def main():
                                 "images/rewards/40-very_happy/*.jpg",
                                 "images/rewards/40-very_happy/*.png"]},
           scripts=[MAIN_PROGNAME, DECORATE_PROGNAME])
+
+
+def main():
+    ch_name = "ChangeLog"
+    if os.path.isdir(".git"):
+        generateChangelog(ch_name)
+    elif not os.path.isfile(ch_name):
+        msg = """\
+There is no {cl!r} file here and it seems you are not operating from a
+clone of the Git repository (no .git directory); therefore, it is impossible to
+generate the {cl!r} file from the Git log. Aborting.""".format(cl=ch_name)
+        sys.exit(msg)
+
+    do_setup()
 
 if __name__ == "__main__": main()
